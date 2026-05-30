@@ -77,7 +77,7 @@ BEGIN
    l_ctx.agr_cur :=
       ECD_loader_Xml.normalize_Cur (
          ECD_loader_Xml.get_string_val(
-            p_ctx.input_xml,
+            l_ctx.input_Xml,
             '//CDA/currency/text()'
          )
       );
@@ -85,7 +85,7 @@ BEGIN
    -- дата заключения договора
    l_ctx.accept_date :=
       ECD_loader_Xml.get_date_val(
-         p_ctx.input_xml,
+         l_ctx.input_xml,
          '//CDA//CDA_DATE/item[@id="accept"]/text()'
       );
 
@@ -142,7 +142,7 @@ DECLARE
 
 BEGIN
 
-   ECD_loader_Log.dbg('ECD_pkgLoader.load_Core: begin')
+   call ECD_loader_Log.dbg('ECD_pkgLoader.load_Core: begin');
 
    -- 1. Клиент договора
    l_cus_xml := ecd_loader_xml.get_Xml_Val (
