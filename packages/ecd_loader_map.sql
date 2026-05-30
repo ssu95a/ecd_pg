@@ -1,4 +1,4 @@
-CREATE OR REPLACE PACKAGE ecd_loader_Map
+CREATE OR REPLACE PACKAGE ECD_loader_Map
 
    CREATE FUNCTION __init__()
       RETURNS void
@@ -22,6 +22,7 @@ BEGIN
 END;
 $function$
 
+
 /* Получить внутренний ID по внешнему */
 CREATE FUNCTION get_Internal_Id(
    IN p_provider_Id varchar,
@@ -36,7 +37,7 @@ DECLARE
 BEGIN
 
    CALL ecd_loader_Log.dbg(
-      'ecd_loader_Map.get_Internal_Id: provider='
+      'ECD_loader_Map.get_Internal_Id: provider='
       || coalesce(p_provider_Id, '<NULL>')
       || ', ent_Id=' || coalesce(p_ent_Id::varchar, '<NULL>')
       || ', ext_Id=' || coalesce(p_ext_Id, '<NULL>')
@@ -73,7 +74,7 @@ DECLARE
 BEGIN
 
    CALL ecd_loader_Log.dbg(
-      'ecd_loader_Map.get_Cda_Id_By_Ext_Id: ext_Id='
+      'ECD_loader_Map.get_Cda_Id_By_Ext_Id: ext_Id='
       || coalesce(p_ext_Id, '<NULL>')
       || ', ext_Id_Type=' || coalesce(p_ext_Id_Type::varchar, '<NULL>')
    );
@@ -119,7 +120,7 @@ EXCEPTION
       RETURN NULL;
    WHEN OTHERS THEN
       CALL ecd_loader_Log.wrn(
-         'ecd_loader_Map.get_Cda_Id_By_Ext_Id: '
+         'ECD_loader_Map.get_Cda_Id_By_Ext_Id: '
          || SQLERRM
       );
       RETURN NULL;
@@ -139,7 +140,7 @@ DECLARE
    l_ext_Id  varchar;
 BEGIN
 
-   CALL ecd_loader_Log.dbg('ecd_loader_Map.get_Cda_Id_By_Xml');
+   CALL ecd_loader_Log.dbg('ECD_loader_Map.get_Cda_Id_By_Xml');
 
    l_cda_Id := ecd_loader_Xml.get_Numeric_Val(p_Xml, '//CDA/@NCDAAGRID');
 
@@ -179,7 +180,7 @@ DECLARE
 BEGIN
 
    CALL ecd_loader_Log.dbg(
-      'ecd_loader_Map.get_CdSale_Id: cda_Id='
+      'ECD_loader_Map.get_CdSale_Id: cda_Id='
       || coalesce(p_cda_Id::varchar, '<NULL>')
       || ', pfl_Id=' || coalesce(p_pfl_Id, '<NULL>')
       || ', pfl_Id_Type=' || coalesce(p_pfl_Id_Type::varchar, '<NULL>')

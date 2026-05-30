@@ -50,6 +50,7 @@ BEGIN
    l_text := btrim(p_text);
 
    RETURN l_text::numeric;
+
 EXCEPTION
    WHEN OTHERS THEN
       RETURN NULL;
@@ -116,7 +117,7 @@ $function$
 
 
 /* Приводит код валюты к символьному коду, если передано как число */
-CREATE FUNCTION normalize_cur(
+CREATE FUNCTION normalize_Cur(
    p_cur varchar
 )
    RETURNS varchar

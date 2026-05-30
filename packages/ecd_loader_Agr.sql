@@ -106,50 +106,6 @@ BEGIN
 END;
 $function$
 
-/*
--- ѕроверка наличи€ процентной ставки,
--- ≈сли на договоре отсутствует, то пытаемс€ получить из истории
-out_put( 'check INTRATE ...' );
-
-IF nvl( l_agrData.extProcent, 0 ) = 0 THEN
-
-   DECLARE
-
-      CURSOR c_get_Last_IntRate
-      IS
-         SELECT y.PCDHPVAL FROM (
-            SELECT
-                TO_NUMBER( REPLACE( REPLACE( x.PCDHPVAL_S, ' ' ), ',', '.' ), FORMAT_PERCENT ) PCDHPVAL,
-                TO_DATE  ( dcdhdate_s, 'YYYY-MM-DD' ) DCDHDATE
-            FROM
-              XMLTABLE( '//CDA_PART/item[@part="1"]/CDA_HTERM/item[term="INTRATE"]'
-                   PASSING l_xData
-              COLUMNS
-                   PCDHPVAL_S VARCHAR2(30) path 'percent_value',
-                   dcdhdate_s VARCHAR2(30) path 'date'
-            ) x
-         ) y
-         ORDER BY y.DCDHDATE DESC;
-
-   BEGIN
-      -- /XXI_DATA_PACK/CDA/CDA_PART/item[@part='1']/CDA_HTERM/item[term='INTRATE']/percent_value
-      OPEN c_get_Last_IntRate;
-         FETCH c_get_Last_IntRate
-            INTO l_agrData.extProcent;
-               CLOSE c_get_Last_IntRate;
-
-      IF NVL( l_agrData.extProcent, 0 ) = 0 THEN
-         RAISE NO_DATA_FOUND;
-      END IF;
-
-   EXCEPTION
-      WHEN NO_DATA_FOUND THEN
-         out_put('NO INTRATE - % ставка не задана, будет вз€та с макета');
-         addReturnInfo( 'cda', '% ставка не задана, будет вз€та с макета' );
-   END;
-END IF;
-*/
-
 
 /* ѕроверить/дополнить процентную ставку */
 CREATE PROCEDURE prepare_Rate (
@@ -190,6 +146,7 @@ BEGIN
 END;
 $procedure$
 
+
 /* ќпределить макет */
 CREATE PROCEDURE resolve_Mda (
    IN     p_ctx ECD_loader_Types.ctx_t,
@@ -198,6 +155,7 @@ CREATE PROCEDURE resolve_Mda (
 AS
 $procedure$
    #package
+   #private
 BEGIN
 
    IF p_agr.mda_id IS NULL THEN
@@ -227,6 +185,7 @@ CREATE PROCEDURE resolve_Agr_Id (
 AS
 $procedure$
    #package
+   #private
 DECLARE
    l_tmp_Agr_Id numeric;
 BEGIN
@@ -263,6 +222,7 @@ CREATE PROCEDURE validate_Agr (
 AS
 $procedure$
    #package
+   #private
 DECLARE
    l_tmp_Agr_Id numeric;
    l_dummy      numeric;
@@ -272,15 +232,15 @@ BEGIN
 
       IF ECD_loader_Map.get_Cda_Id_By_Ext_Id(p_agr.initial_id, 3) IS NULL THEN
 
-         CALL ECD_loader_Err.raise_Data_Error(
+         CALL ECD_loader_Err.raise_Data_Error (
             'INITIAL_ID_NOT_FOUND',
             'ƒоговор дл€ обратного выкупа с исходным идентификатором '
-            || p_agr.initial_id || ' не найден.'
+            || p_agr.initial_Id || ' не найден.'
          );
 
       END IF;
 
-      IF ECD_loader_Map.get_Cda_Id_By_Ext_Id(p_agr.initial_id, 4) IS NOT NULL THEN
+      IF ECD_loader_Map.get_Cda_Id_By_Ext_Id( p_agr.initial_id, 4) IS NOT NULL THEN
 
          CALL ECD_loader_Err.raise_Data_Error(
             'INITIAL_ID_ALREADY_USED',
@@ -656,40 +616,44 @@ $procedure$
 BEGIN
 
    IF p_agr.agr_id IS NULL THEN
+
       CALL ecd_loader_err.raise_Business_Error (
          'AGR_ID_IS_NULL',
          'Ќевозможно загрузить историю параметров договора: не задан agr_id.'
       );
+
    END IF;
 
    MERGE INTO cdh t
    USING (
       SELECT
-         p_agr.agr_id                                                AS ncdhagrid,
-         x.npart                                                     AS icdhpart,
-         x.ccdhterm                                                  AS ccdhterm,
+         p_agr.agr_id                                    AS ncdhagrid,
+         x.npart                                         AS icdhpart,
+         x.ccdhterm                                      AS ccdhterm,
          CASE
-            WHEN x.ccdhterm = 'DISCRATE' THEN p_agr.d_sign
+            WHEN x.ccdhterm = 'DISCRATE' 
+                 THEN p_agr.d_sign
             ELSE x.dcdhdate
-         END                                                         AS dcdhdate,
-         x.icdhdsub                                                  AS icdhdsub,
+         END                                             AS dcdhdate,
+         x.icdhdsub                                      AS icdhdsub,
          CASE
-            WHEN x.ccdhterm = 'DEND' THEN cdces.normalize_Date(x.ccdhcval)
+            WHEN x.ccdhterm = 'DEND' 
+                 THEN cdces.normalize_Date(x.ccdhcval)
             ELSE x.ccdhcval
-         END                                                         AS ccdhcval,
-         x.mcdhmval                                                  AS mcdhmval,
-         x.icdhival                                                  AS icdhival,
-         x.pcdhpval                                                  AS pcdhpval
+         END                                             AS ccdhcval,
+         x.mcdhmval                                      AS mcdhmval,
+         x.icdhival                                      AS icdhival,
+         x.pcdhpval                                      AS pcdhpval
       FROM (
          SELECT
             xt.npart,
             xt.ccdhterm,
-            ecd_loader_xml.get_date_val(xt.dcdhdate_s)               AS dcdhdate,
-            ecd_loader_xml.to_numeric(xt.icdhdsub_s)                 AS icdhdsub,
+            ecd_loader_xml.get_date_val(xt.dcdhdate_s)   AS dcdhdate,
+            ecd_loader_xml.to_numeric(xt.icdhdsub_s)     AS icdhdsub,
             xt.ccdhcval,
-            ecd_loader_xml.to_money(xt.mcdhmval_s)                   AS mcdhmval,
-            ecd_loader_xml.to_numeric(xt.icdhival_s)                 AS icdhival,
-            ecd_loader_xml.to_percent(xt.pcdhpval_s)                 AS pcdhpval
+            ecd_loader_xml.to_money(xt.mcdhmval_s)       AS mcdhmval,
+            ecd_loader_xml.to_numeric(xt.icdhival_s)     AS icdhival,
+            ecd_loader_xml.to_percent(xt.pcdhpval_s)     AS pcdhpval
          FROM XMLTABLE(
             '//CDA_PART/item/CDA_HTERM/item'
             PASSING p_ctx.input_Xml
@@ -754,6 +718,7 @@ CREATE PROCEDURE load_Agr (
 )
 AS
 $procedure$
+   #package
 BEGIN
 
    p_agr := parse_Agr(p_ctx, p_cus_Id);
@@ -778,12 +743,9 @@ BEGIN
    CALL save_Psk        (p_agr);
 
    CALL create_Parts    (p_ctx, p_agr);
-   CALL load_History    (p_ctx, p_agr);
 
    CALL ECD_loader_Ret.put_Data (
-      'cda',
-      NULL,
-      p_agr.agr_id::varchar
+      'cda', NULL, p_agr.agr_id::varchar
    );
 
 END;

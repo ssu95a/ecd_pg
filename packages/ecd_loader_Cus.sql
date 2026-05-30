@@ -384,33 +384,41 @@ BEGIN
    END IF;
 
    IF l_cus_Xml_Id IS NOT NULL THEN
-      SELECT CASE WHEN EXISTS(
-                SELECT 1 FROM cus a WHERE a.iCusNum = l_cus_Xml_Id
-             ) THEN 1 ELSE 0 END
-        INTO l_cus_Exists;
+
+      SELECT CASE
+                WHEN EXISTS( SELECT 1 FROM cus a WHERE a.iCusNum = l_cus_Xml_Id ) THEN 1 
+                ELSE 0 
+             END
+        INTO 
+            l_cus_Exists;
 
       IF l_cus_Exists = 1 THEN
-         p_cus_Id := l_cus_Xml_Id;
+
+         p_cus_Id      := l_cus_Xml_Id;
          p_result_Code := RET_OK;
 
-         CALL ecd_loader_Ret.put_Info(
-            p_ent_Id,
-            'Клиент с переданным ICUSNUM существует. iCusNum = ' || p_cus_Id::varchar,
-            NULL,
-            p_cus_Id::varchar
+         CALL ecd_loader_Ret.put_Info (
+              p_ent_Id,
+              'Клиент с переданным ICUSNUM существует. iCusNum = ' || p_cus_Id::varchar,
+              NULL,
+              p_cus_Id::varchar
          );
 
          RETURN;
+
       ELSE
+
          CALL ecd_loader_Err.raise_Data_Error(
             'CUS_ID_NOT_EXISTS',
-            'Клиент с ID ' || l_cus_Xml_Id::varchar
-            || ' переданный в XML, не существует в реестре клиентов XXI.'
+            'Клиент с ID ' || l_cus_Xml_Id::varchar || ' переданный в XML, не существует в реестре клиентов XXI.'
          );
+
       END IF;
+
    END IF;
 
    IF l_cus_Type IN (2, 3, 5, 6, 7) THEN
+
       CALL get_Or_Create_Jur_Cus(
          p_ctx,
          p_xml,
@@ -420,6 +428,7 @@ BEGIN
          p_result_Info
       );
       RETURN;
+
    END IF;
 
    l_doc_Type_Id := ecd_loader_Xml.get_Numeric_Val(p_xml, '//CUS_DOC/item[@main="1"]/id_doc_tp/text()');
@@ -428,29 +437,32 @@ BEGIN
    l_doc_Ext_Id  := ecd_loader_Xml.get_String_Val (p_xml, '//CUS_DOC/item[@main="1"]/external_doc_type/text()');
 
    IF l_doc_Type_Id IS NULL AND l_doc_Ext_Id IS NOT NULL THEN
-      l_doc_Type_Id := ecd_loader_Map.get_Internal_Id(
+
+      l_doc_Type_Id := ecd_loader_Map.get_Internal_Id (
          p_ctx.provider_id,
          1,
          l_doc_Ext_Id
       )::numeric;
+
    END IF;
 
    IF l_doc_Type_Id IS NULL THEN
+
       CALL ecd_loader_Err.raise_Config_Error(
          'DOC_TYPE_NOT_FOUND',
          'Не возможно корректно определить тип ДУЛ физ. лица по внешнему коду "'
          || coalesce(l_doc_Ext_Id, '<NULL>') || '". Проверьте настройки.'
       );
+
    END IF;
 
    BEGIN
+
       SELECT c.iCusNum,
              c.cCusNumNal
-        INTO l_found_Id,
-             l_found_Inn
+        INTO l_found_Id, l_found_Inn
         FROM cus_docum d
-        JOIN cus c
-          ON c.iCusNum = d.iCusNum
+             JOIN cus c ON c.iCusNum = d.iCusNum
        WHERE d.id_doc_tp = l_doc_Type_Id
          AND regexp_replace(d.doc_num, '\D', '', 'g') = regexp_replace(coalesce(l_doc_Num, ''), '\D', '', 'g')
          AND regexp_replace(d.doc_ser, '\D', '', 'g') = regexp_replace(coalesce(l_doc_Ser, ''), '\D', '', 'g')
@@ -463,7 +475,7 @@ BEGIN
 
    EXCEPTION
       WHEN NO_DATA_FOUND THEN
-         p_cus_Id := NULL;
+           p_cus_Id := NULL;
       WHEN TOO_MANY_ROWS THEN
          CALL ecd_loader_Err.raise_Data_Error(
             'CUS_TOO_MANY_BY_DOC',
@@ -473,17 +485,17 @@ BEGIN
 
    IF p_cus_Id IS NOT NULL THEN
 
-      IF coalesce(l_found_Inn, chr(255))
+      IF coalesce( l_found_Inn, chr(255) )
          <>
          coalesce(
-            ecd_loader_Xml.get_String_Val(p_xml, '//inn/text()'),
-            coalesce(l_found_Inn, chr(255))
-         )
+            ecd_loader_Xml.get_String_Val(p_xml, '//inn/text()'), coalesce(l_found_Inn, chr(255)) )
       THEN
+
          CALL ecd_loader_Err.raise_Data_Error(
             'CUS_BAD_INN',
             'Не возможно корректно определить клиента, т.к. ИНН отличается от того, который заведен в БД'
          );
+
       END IF;
 
       l_is_New := 0;
@@ -504,7 +516,7 @@ BEGIN
 
       l_is_New := 1;
 
-      CALL ecd_loader_Ret.put_Info(
+      CALL ecd_loader_Ret.put_Info (
          p_ent_Id,
          'Заведен новый клиент с iCusNum = ' || p_cus_Id::varchar,
          NULL,
@@ -523,12 +535,15 @@ BEGIN
    );
 
    IF l_handler_Code <> RET_OK THEN
+
       p_result_Code := RET_FAIL;
       p_result_Info := l_handler_Info;
       RETURN;
+
    END IF;
 
    IF p_cus_Id IS NOT NULL THEN
+      
       CALL handle_After_Create(
          p_ctx,
          p_xml,
@@ -537,6 +552,7 @@ BEGIN
       );
 
       CALL collect_Client_Info(p_cus_Id);
+      
    END IF;
 
    p_result_Code := RET_OK;
