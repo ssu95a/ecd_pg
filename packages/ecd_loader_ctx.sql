@@ -1,4 +1,4 @@
-CREATE OR REPLACE PACKAGE ecd_loader_Сtx
+CREATE OR REPLACE PACKAGE ecd_loader_ctx
 
    CREATE FUNCTION __init__()
       RETURNS void
