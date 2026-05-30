@@ -125,29 +125,167 @@ $procedure$
 
 
 /* Основная процедура загрузки */
-CREATE PROCEDURE load_core(
-   IN OUT p_ctx ECD_loader_types.ctx_t
+CREATE PROCEDURE load_Core (
+   IN OUT p_ctx ECD_loader_Types.Ctx_t
 )
 AS
 $procedure$
    #package
    #private
+DECLARE
+   l_cus_xml      xml;
+   l_cus_id       numeric;
+   l_agr          ECD_loader_Types.Agr_t;
+
+   l_result_Code  int4;
+   l_result_Info  varchar(4000);
+
 BEGIN
-   /*
-      Здесь позже будет:
-      CALL ECD_loader_main.load_contract_core(p_ctx);
-   */
 
-   CALL ECD_loader_Ret.put_Info(
-      'cda',
-      'Каркас ECD_pkgLoader подключен. Внутренняя orchestration-логика еще не реализована.'
+   ECD_loader_Log.dbg('ECD_pkgLoader.load_Core: begin')
+
+   -- 1. Клиент договора
+   l_cus_xml := ecd_loader_xml.get_Xml_Val (
+      p_ctx.input_xml,
+      '//CDA/CDA_CUS'
    );
 
-   CALL set_Result (
+   CALL ECD_loader_Cus.get_Or_Create_Cus (
       p_ctx,
-      RET_FAIL,
-      'ECD_pkgLoader.load: ECD_loader_main.load_contract_core еще не подключен.'
+      l_cus_xml,
+      'cda.cus',
+      l_cus_id,
+      l_result_code,
+      l_result_info
    );
+
+   IF l_result_code <> RET_OK OR l_cus_id IS NULL OR l_cus_id <= 0 THEN
+      
+      p_ctx.result_code := RET_FAIL;
+      p_ctx.result_info := coalesce( l_result_info, 'Невозможно загрузить данные клиента.' );
+
+      CALL ecd_loader_ret.put_Error(
+         'cda',
+          p_ctx.result_info
+      );
+
+      RETURN;
+
+   END IF;
+
+   p_ctx.cus_id := l_cus_Id;
+
+   CALL ecd_loader_ret.put_Data(
+      'cda.cus',
+      NULL,
+      l_cus_id::varchar
+   );
+
+   /*
+      2. Договор
+      Внутри load_Agr:
+      - parse_Agr
+      - prepare_Rate
+      - resolve_Mda
+      - resolve_Agr_Id
+      - validate_Agr
+      - resolve_Purchase
+      - create_Agr
+      - load_History
+      - save_Meta / save_Purpose / save_Ifrs / save_Psk / save_Uuid / link_To_Pfl
+   */
+   CALL ecd_loader_Agr.load_Agr(
+      p_ctx,
+      l_cus_id,
+      l_agr
+   );
+
+   IF l_agr.agr_id IS NULL THEN
+
+      p_ctx.result_code := RET_FAIL;
+      p_ctx.result_info := 'Договор не создан: не сформирован agr_id.';
+
+      CALL ecd_loader_ret.put_Error(
+         'cda',
+         p_ctx.result_info
+      );
+
+      RETURN;
+
+   END IF;
+
+   p_ctx.agr_id := l_agr.agr_id;
+
+   CALL ecd_loader_ret.put_Data(
+      'cda',
+      NULL,
+      l_agr.agr_id::varchar
+   );
+
+   /*
+      3. Графики
+      Stage 1: грузим весь готовый блок графиков.
+   */
+   CALL ECD_loader_Schedule.load_All(
+      p_ctx,
+      l_agr.agr_id,
+      p_ctx.input_xml
+   );
+
+   /*
+      4. Счета договора
+   */
+   CALL ecd_loader_Acc.load_Acc_List(
+      p_ctx,
+      l_agr.agr_id,
+      p_ctx.input_xml,
+      l_result_code,
+      l_result_info
+   );
+
+   IF l_result_code <> RET_OK 
+   THEN
+
+      p_ctx.result_code := RET_FAIL;
+      p_ctx.result_info := coalesce( l_result_info, 'Ошибка при загрузке счетов договора.' );
+
+      CALL ecd_loader_ret.put_Error(
+         'cda',
+         p_ctx.result_info,
+         NULL,
+         l_agr.agr_id::varchar
+      );
+
+      RETURN;
+
+   END IF;
+
+   /*
+      5. Stage 1 success
+   */
+   p_ctx.result_code := RET_OK;
+   p_ctx.result_info := 'Успешно заведен договор с ID ' || l_agr.agr_id::varchar;
+
+   CALL ecd_loader_ret.put_Info(
+      'cda',
+      p_ctx.result_info,
+      NULL,
+      l_agr.agr_id::varchar
+   );
+
+   RAISE DEBUG 'ECD_pkgLoader.load_Core: success, agr_id=%', l_agr.agr_id;
+
+EXCEPTION
+   WHEN OTHERS THEN
+      p_ctx.result_code := RET_FAIL;
+      p_ctx.result_info := SQLERRM;
+
+      CALL ecd_loader_ret.put_Error(
+         'cda',
+         p_ctx.result_info,
+         NULL,
+         coalesce(p_ctx.agr_id::varchar, NULL)
+      );
 END;
 $procedure$
 
@@ -180,6 +318,7 @@ BEGIN
 
    CALL ECD_loader_log.dbg('ECD_pkgLoader.load: begin');
 
+   -- 2. Разбор входного XML с данными
    IF p_cdata_xml IS NULL OR btrim(p_cdata_xml) = '' THEN
       p_result_info := 'Переданный XML договора пуст.';
       CALL ECD_loader_Ret.put_Error( 'cda', p_result_info );
@@ -187,24 +326,39 @@ BEGIN
    END IF;
 
    BEGIN
-      l_input_xml := xmlparse( document p_cdata_xml );
+      l_input_xml := convert_from(p_bdata_xml, 'UTF8')::xml;
    EXCEPTION
       WHEN OTHERS THEN
-         p_result_info := 'Переданный XML договора не является валидным.';
-         CALL ECD_loader_Ret.put_Error( 'cda', p_result_info );
+         p_result_code := RET_FAIL;
+         p_result_info := 'Переданный XML с данными не является валидным.';
+
+         CALL ecd_loader_ret.put_Error(
+            'cda',
+            p_result_info
+         );
+
          RETURN;
    END;
 
+   
+   --   3. Разбор XML параметров
    BEGIN
-      IF p_cparameters_xml IS NOT NULL AND btrim(p_cparameters_xml) <> '' THEN
-         l_params_xml := xmlparse(document p_cparameters_xml);
+      IF p_cparameters_xml IS NOT NULL
+      THEN
+         l_params_xml := p_cparameters_xml::xml;
       ELSE
          l_params_xml := NULL;
       END IF;
    EXCEPTION
       WHEN OTHERS THEN
-         p_result_info := 'Переданный XML параметров не является валидным.';
-         CALL ECD_loader_Ret.put_Error('cda', p_result_info);
+         p_result_code := RET_FAIL;
+         p_result_info := 'Переданный XML с параметрами не является валидным.';
+
+         CALL ecd_loader_ret.put_Error(
+            'cda',
+            p_result_info
+         );
+
          RETURN;
    END;
 
@@ -216,6 +370,21 @@ BEGIN
 
    p_result_code := l_ctx.result_code;
    p_result_info := l_ctx.result_info;
+
+  /*
+      Если load_Core по какой-то причине не выставил текст результата.
+   */
+   IF p_result_code IS NULL THEN
+      p_result_code := RET_FAIL;
+   END IF;
+
+   IF p_result_info IS NULL THEN
+      IF p_result_code = RET_OK THEN
+         p_result_info := 'Загрузка завершена успешно.';
+      ELSE
+         p_result_info := 'Загрузка завершена с ошибкой без текста диагностики.';
+      END IF;
+   END IF;
 
    CALL ECD_loader_log.dbg( 'ECD_pkgLoader.load: end, result_code = ' || coalesce(p_result_code::varchar, '<null>') );
 
