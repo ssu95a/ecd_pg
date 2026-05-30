@@ -17,6 +17,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_Ret
    END;
    $init$
 
+
 /* */
 CREATE FUNCTION get_Version( )
    RETURNS varchar
@@ -26,6 +27,7 @@ BEGIN
    RETURN cVersion;
 END;
 $function$
+
 
 /* */
 CREATE PROCEDURE ensure_Table( )
