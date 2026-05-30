@@ -74,7 +74,7 @@ BEGIN
    l_ctx.fin_res_sum := l_val;
 
    -- валюта договора
-   p_ctx.agr_cur :=
+   l_ctx.agr_cur :=
       ECD_loader_Xml.normalize_Cur (
          ECD_loader_Xml.get_string_val(
             p_ctx.input_xml,
@@ -83,23 +83,23 @@ BEGIN
       );
 
    -- дата заключения договора
-   p_ctx.accept_date :=
+   l_ctx.accept_date :=
       ECD_loader_Xml.get_date_val(
          p_ctx.input_xml,
          '//CDA//CDA_DATE/item[@id="accept"]/text()'
       );
 
-   IF p_ctx.accept_date IS NULL THEN
-      p_ctx.accept_date := current_date;
+   IF l_ctx.accept_date IS NULL THEN
+      l_ctx.accept_date := current_date;
    END IF;
 
-   l_run_ffv := ECD_loader_Xml.get_parameter(
-      p_ctx.params_xml,
+   l_val := ECD_loader_Xml.get_parameter(
+      l_ctx.params_xml,
       'run_ffv',
       '0'
    );
    
-   p_ctx.run_ffv := coalesce(l_run_ffv, '0') = '1';
+   l_ctx.run_ffv := coalesce( l_val, '0') = '1';
 
    RETURN l_ctx;
 
@@ -229,7 +229,7 @@ EXCEPTION
       p_result_code := RET_FAIL;
       p_result_info := l_err_text;
 
-      CALL ECD_loader_Ret.ret_add_error('cda', p_result_info);
+      CALL ECD_loader_Ret.put_Error('cda', p_result_info);
 END;
 $procedure$
 

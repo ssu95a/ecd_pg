@@ -29,25 +29,27 @@ END;
 $function$
 
 
-/* Разобрать XML договора в Agr_t */
-CREATE FUNCTION parse_Agr(
-   IN p_ctx     ecd_loader_Types.Ctx_t,
+/* Разбор XML договора в Agr_t */
+CREATE FUNCTION parse_Agr (
+   IN p_ctx     ECD_loader_Types.Ctx_t,
    IN p_cus_Id  numeric
 )
    RETURNS 
-      ecd_loader_Types.Agr_t
+      ECD_loader_Types.Agr_t
 AS
 $function$
    #package
+   #private
 DECLARE
-   l_agr ecd_loader_Types.Agr_t;
+   l_agr ECD_loader_Types.Agr_t;
 BEGIN
 
    l_agr.cus_id          := p_cus_Id;
    -- ID договора, может приходить из вне
    l_agr.agr_id          := ecd_loader_Xml.get_Numeric_Val(p_ctx.input_xml, '//CDA/@NCDAAGRID');
-   -- Идентификатор, ЮР-номер
+   -- ЮР-номер
    l_agr.ext_num         := ecd_loader_Xml.get_String_Val (p_ctx.input_xml, '//CDA/identifier/text()');
+   -- Внешний идентификатор, из внешней системы
    l_agr.ext_id          := ecd_loader_Xml.get_String_Val (p_ctx.input_xml, '//CDA/external_id/text()');
 
    l_agr.mda_Id          := ecd_loader_Xml.get_Numeric_Val(p_ctx.input_xml, '//CDA/CDA_MDA/@IMD2NUM');
@@ -148,49 +150,9 @@ IF nvl( l_agrData.extProcent, 0 ) = 0 THEN
 END IF;
 */
 
+
 /* Проверить/дополнить процентную ставку */
 CREATE PROCEDURE prepare_Rate (
-   IN     p_ctx ecd_loader_types.ctx_t,
-   IN OUT p_agr ecd_loader_types.agr_t
-)
-AS
-$procedure$
-BEGIN
-   /*
-      Если ставка не задана на договоре:
-      - попытаться взять из истории INTRATE
-      - если не найдена, будет браться с макета
-   */
-   IF coalesce( p_agr.ext_Percent, 0 ) = 0 THEN
-
-      SELECT y.PCDHPVAL 
-            into p_agr.ext_percent
-      FROM (
-         SELECT
-             ecd_loader_Xml.to_Percent(PCDHPVAL),
-             to_date( dcdhdate_s, 'YYYY-MM-DD' ) DCDHDATE
-         FROM
-            XMLTABLE( '//CDA_PART/item[@part="1"]/CDA_HTERM/item[term="INTRATE"]'
-               PASSING p_ctx.input_Xml
-            COLUMNS
-               PCDHPVAL_S VARCHAR2(30) path 'percent_value',
-               dcdhdate_s VARCHAR2(30) path 'date'
-         ) x
-      ) y
-      ORDER BY y.DCDHDATE DESC;
-
-      IF coalesce(p_agr.ext_percent, 0) = 0 THEN
-         CALL ecd_loader_Ret.put_Warn( 'cda', '% ставка не задана, будет взята с макета' );
-      end if;   
-
-   END IF;
-
-END;
-$procedure$
-
-
-/* Определить макет */
-CREATE PROCEDURE resolve_Mda (
    IN     p_ctx ecd_loader_types.ctx_t,
    IN OUT p_agr ecd_loader_types.agr_t
 )
@@ -199,21 +161,59 @@ $procedure$
    #package
 BEGIN
 
+   IF coalesce( p_agr.ext_percent, 0 ) <> 0 THEN
+      RETURN;
+   END IF;
+
+   SELECT z.pcdhpval
+     INTO p_agr.ext_percent
+     FROM (
+        SELECT
+           ecd_loader_xml.to_percent(x.pcdhpval_s) AS pcdhpval,
+           to_date(x.dcdhdate_s, 'YYYY-MM-DD')     AS dcdhdate
+          FROM XMLTABLE(
+             '//CDA_PART/item[@part="1"]/CDA_HTERM/item[term="INTRATE"]'
+             PASSING p_ctx.input_Xml
+             COLUMNS
+                pcdhpval_s varchar(30) PATH 'percent_value',
+                dcdhdate_s varchar(30) PATH 'date'
+          ) x
+        WHERE x.pcdhpval_s IS NOT NULL
+     ) z
+    ORDER BY z.dcdhdate DESC
+    LIMIT 1;
+
+   IF coalesce(p_agr.ext_percent, 0) = 0 THEN
+      CALL ecd_loader_ret.put_Warn( 'cda', '% ставка не задана, будет взята с макета' );
+   END IF;
+
+END;
+$procedure$
+
+/* Определить макет */
+CREATE PROCEDURE resolve_Mda (
+   IN     p_ctx ECD_loader_Types.ctx_t,
+   IN OUT p_agr ECD_loader_Types.agr_t
+)
+AS
+$procedure$
+   #package
+BEGIN
+
    IF p_agr.mda_id IS NULL THEN
-      p_agr.mda_id := ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 4::int4, p_agr.mak_external_id )::numeric;
+      p_agr.mda_id := ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 4::int4, p_agr.mak_external_Id )::numeric;
    END IF;
 
    IF p_agr.mda_id IS NULL THEN
-      CALL ecd_loader_Err.raise_Config_Error (
+
+      CALL ECD_loader_Err.raise_Config_Error (
          'MDA_NOT_FOUND',
-         'Невозможно определить ID макета XXI по коду "'
-         || coalesce(p_agr.mak_external_id, '<NULL>')
-         || '" из внешних данных. Проверьте настройки макетов договоров для провайдера '
-         || coalesce(p_ctx.provider_id, '<NULL>')
+         'Невозможно определить ID макета XXI по коду "' || coalesce(p_agr.mak_external_id, '<NULL>') || '" из внешних данных. Проверьте настройки макетов договоров для провайдера ' || coalesce( p_ctx.provider_id, '<NULL>')
       );
+
    END IF;
 
-   CALL ecd_loader_Ret.put_Info( 'cda', 'Макет для договора: ' || p_agr.mda_Id::varchar );
+   CALL ECD_loader_Ret.put_Info( 'cda', 'Макет для договора: ' || p_agr.mda_Id::varchar );
 
 END;
 $procedure$
@@ -221,8 +221,8 @@ $procedure$
 
 /* Определить / проверить ID договора */
 CREATE PROCEDURE resolve_Agr_Id (
-   IN     p_ctx ecd_loader_types.ctx_t,
-   IN OUT p_agr ecd_loader_types.agr_t
+   IN     p_ctx ECD_loader_Types.ctx_t,
+   IN OUT p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
@@ -237,10 +237,12 @@ BEGIN
       l_tmp_Agr_Id := ECD_loader_Map.get_Cda_Id_By_Ext_Id( p_agr.agr_id::varchar, 3 );
 
       IF l_tmp_Agr_Id IS NOT NULL THEN
-         CALL ecd_loader_Err.raise_Data_Error(
+
+         CALL ECD_loader_Err.raise_Data_Error (
             'AGR_ID_ALREADY_EXISTS',
             'Договор с идентификатором ' || p_agr.agr_id::varchar || ' уже существует.'
          );
+
       END IF;
 
    END IF;
@@ -249,10 +251,14 @@ END;
 $procedure$
 
 
-/* Проверить ограничения по обратному выкупу / дублям */
+/* 
+   Проверить ограничения по договору:
+   - обратный выкуп
+   - дублирование Id 
+*/
 CREATE PROCEDURE validate_Agr (
-   IN p_ctx ecd_loader_types.ctx_t,
-   IN p_agr ecd_loader_types.agr_t
+   IN p_ctx ECD_loader_Types.ctx_t,
+   IN p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
@@ -264,9 +270,9 @@ BEGIN
 
    IF p_agr.initial_Id IS NOT NULL THEN
 
-      IF ecd_loader_Map.get_Cda_Id_By_Ext_Id(p_agr.initial_id, 3) IS NULL THEN
+      IF ECD_loader_Map.get_Cda_Id_By_Ext_Id(p_agr.initial_id, 3) IS NULL THEN
 
-         CALL ecd_loader_Err.raise_Data_Error(
+         CALL ECD_loader_Err.raise_Data_Error(
             'INITIAL_ID_NOT_FOUND',
             'Договор для обратного выкупа с исходным идентификатором '
             || p_agr.initial_id || ' не найден.'
@@ -274,9 +280,9 @@ BEGIN
 
       END IF;
 
-      IF ecd_loader_Map.get_Cda_Id_By_Ext_Id(p_agr.initial_id, 4) IS NOT NULL THEN
+      IF ECD_loader_Map.get_Cda_Id_By_Ext_Id(p_agr.initial_id, 4) IS NOT NULL THEN
 
-         CALL ecd_loader_Err.raise_Data_Error(
+         CALL ECD_loader_Err.raise_Data_Error(
             'INITIAL_ID_ALREADY_USED',
             'Для договора с ID ' || p_agr.initial_id || ' уже был загружен договор обратного выкупа'
          );
@@ -288,10 +294,10 @@ BEGIN
            INTO STRICT l_dummy
            FROM cda a
           WHERE a.nCdaAgrID = p_agr.initial_id::numeric
-            AND coalesce(a.cCdaAgrMnt, ' ') = coalesce(p_agr.ext_num, ' ');
+            AND coalesce( a.cCdaAgrMnt, ' ') = coalesce( p_agr.ext_Num, ' ' );
       EXCEPTION
          WHEN NO_DATA_FOUND THEN
-            CALL ecd_loader_Err.raise_Data_Error(
+            CALL ECD_loader_Err.raise_Data_Error(
                'INITIAL_ID_JUR_NOT_EQ',
                'Для договора обратного выкупа необходимо чтобы ID и Юр.номер совпадали с теми которые в БД.'
             );
@@ -305,7 +311,7 @@ BEGIN
 
          IF l_tmp_Agr_Id IS NOT NULL THEN
 
-            CALL ecd_loader_Err.raise_Data_Error(
+            CALL ECD_loader_Err.raise_Data_Error(
                'AGR_JUR_ALREADY_EXISTS',
                'Договор с юр. номером ' || p_agr.ext_num || ' уже загружен. (cda.nCdaAgrID = ' || l_tmp_Agr_Id::varchar || ')'
             );
@@ -320,12 +326,13 @@ $procedure$
 
 
 /* Определить тип приобретения / портфель */
-CREATE PROCEDURE resolve_Purchase(
-   IN     p_ctx ecd_loader_types.ctx_t,
-   IN OUT p_agr ecd_loader_types.agr_t
+CREATE PROCEDURE resolve_Purchase (
+   IN     p_ctx ECD_loader_Types.ctx_t,
+   IN OUT p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
+   #package
 DECLARE
    l_type  numeric;
    l_value numeric;
@@ -333,7 +340,7 @@ BEGIN
 
    IF p_agr.pfl_id IS NOT NULL OR p_agr.pfl_num IS NOT NULL THEN
 
-      p_agr.pfl_id := ecd_loader_Map.get_CdSale_Id (
+      p_agr.pfl_id := ECD_loader_Map.get_CdSale_Id (
          p_agr.agr_id,
          coalesce( p_agr.pfl_id::varchar, p_agr.pfl_num),
          CASE WHEN p_agr.pfl_id IS NULL THEN 2 ELSE 1 END
@@ -341,7 +348,7 @@ BEGIN
 
       IF p_agr.pfl_id IS NULL THEN
          
-         CALL ecd_loader_Err.raise_Data_Error (
+         CALL ECD_loader_Err.raise_Data_Error (
             'PFL_NOT_FOUND',
             'Не возможно получить идентификатор портфеля по переданным параметрам'
          );
@@ -350,7 +357,7 @@ BEGIN
 
       IF p_agr.purchase_type IS NULL THEN
 
-         CALL ecd_loader_Map.get_Purchase_Pfl (
+         CALL ECD_loader_Map.get_Purchase_Pfl (
             p_agr.pfl_id,
             l_type,
             l_value
@@ -373,8 +380,8 @@ $procedure$
 
 /* Создать договор */
 CREATE PROCEDURE create_Agr (
-   IN     p_ctx ecd_loader_types.ctx_t,
-   IN OUT p_agr ecd_loader_types.agr_t
+   IN     p_ctx ECD_loader_Types.ctx_t,
+   IN OUT p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
@@ -387,14 +394,14 @@ BEGIN
       p_agr.fin_res := p_ctx.fin_res_sum;
    END IF;
 
-   CALL ecd_loader_Dep.new_Ces(
+   CALL ecd_loader_Dep.new_Ces (
       p_agr,
       l_result_Code,
       l_result_Info
    );
 
    IF l_result_Code <> RET_OK THEN
-      CALL ecd_loader_Err.raise_Data_Error(
+      CALL ECD_loader_Err.raise_Data_Error(
          'NEW_CES_FAILED',
          'CDCes.New_Ces: ' || coalesce(l_result_Info, '<NULL>')
       );
@@ -406,7 +413,7 @@ $procedure$
 
 /* Создать связь с портфелем */
 CREATE PROCEDURE link_To_Pfl (
-   IN p_agr ecd_loader_types.agr_t
+   IN p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
@@ -436,7 +443,7 @@ $procedure$
 
 /* Сохранить UUID */
 CREATE PROCEDURE save_Uuid (
-   IN p_agr ecd_loader_Types.Agr_t
+   IN p_agr ECD_loader_Types.Agr_t
 )
 AS
 $procedure$
@@ -458,7 +465,7 @@ BEGIN
    );
 
    IF l_result_Code <> RET_OK THEN
-      CALL ecd_loader_Ret.put_Warn (
+      CALL ECD_loader_Ret.put_Warn (
          'cda',
          'Ошибка при сохранении УИД: ' || coalesce(l_result_Info, '<NULL>'),
          p_agr.uuid,
@@ -472,7 +479,7 @@ $procedure$
 
 /* Сохранить meta в cda2 */
 CREATE PROCEDURE save_Meta(
-   IN p_agr ecd_loader_types.agr_t
+   IN p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
@@ -494,8 +501,8 @@ $procedure$
 
 /* Сохранить цель договора */
 CREATE PROCEDURE save_Purpose(
-   IN     p_ctx ecd_loader_types.ctx_t,
-   IN OUT p_agr ecd_loader_types.agr_t
+   IN     p_ctx ECD_loader_Types.ctx_t,
+   IN OUT p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
@@ -504,7 +511,7 @@ BEGIN
 
    IF p_agr.purpose_id IS NULL AND p_agr.purpose_num IS NOT NULL 
    THEN
-      p_agr.purpose_id := ecd_loader_Map.get_Internal_Id( p_ctx.provider_id, 6, p_agr.purpose_num)::numeric;
+      p_agr.purpose_id := ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 6, p_agr.purpose_num)::numeric;
    END IF;
 
    IF p_agr.purpose_id IS NULL THEN
@@ -532,8 +539,8 @@ $procedure$
 
 /* Сохранить IFRS */
 CREATE PROCEDURE save_Ifrs(
-   IN     p_ctx ecd_loader_Types.Ctx_t,
-   IN OUT p_agr ecd_loader_Types.Agr_t
+   IN     p_ctx ECD_loader_Types.Ctx_t,
+   IN OUT p_agr ECD_loader_Types.Agr_t
 )
 AS
 $procedure$
@@ -551,7 +558,7 @@ BEGIN
    END IF;
 
    IF p_agr.msfo_std IS NOT NULL THEN
-      l_stage_Id := ecd_loader_Map.get_Internal_Id(
+      l_stage_Id := ECD_loader_Map.get_Internal_Id(
          p_ctx.provider_id,
          10,
          p_agr.msfo_std
@@ -566,7 +573,7 @@ BEGIN
       );
 
       IF l_result_Code <> RET_OK THEN
-         CALL ecd_loader_Ret.put_Warn(
+         CALL ECD_loader_Ret.put_Warn(
             'cda',
             'Ошибка установки стадии МСФО: ' || coalesce(l_result_Info, '<NULL>'),
             p_agr.msfo_std,
@@ -576,7 +583,7 @@ BEGIN
    END IF;
 
    IF p_agr.msfo_seg IS NOT NULL THEN
-      CALL ecd_loader_Dep.update_History(
+      CALL ecd_loader_Dep.update_History (
          p_agr.agr_id,
          1,
          'IFRS_SG',
@@ -584,11 +591,7 @@ BEGIN
          NULL,
          NULL,
          NULL,
-         ecd_loader_Map.get_Internal_Id(
-            p_ctx.provider_id,
-            11,
-            p_agr.msfo_seg
-         )::numeric
+         ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 11, p_agr.msfo_seg )::numeric
       );
    END IF;
 
@@ -598,25 +601,23 @@ $procedure$
 
 /* Сохранить ПСК */
 CREATE PROCEDURE save_Psk(
-   IN p_agr ecd_loader_types.agr_t
+   IN p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
    #package
 BEGIN
-
-   IF p_agr.psk IS NULL THEN
-      RETURN;
+   IF p_agr.psk IS NOT NULL THEN
+      CALL ECD_loader_Dep.update_History( p_agr.agr_id, NULL, 'FULLRATE', p_agr.dt_buy, NULL, NULL, p_agr.psk, NULL );
    END IF;
-   CALL ECD_loader_Dep.update_History( p_agr.agr_id, NULL, 'FULLRATE', p_agr.dt_buy, NULL, NULL, p_agr.psk, NULL );
 END;
 $procedure$
 
 
 /* Создать части договора */
 CREATE PROCEDURE create_Parts(
-   IN p_ctx ecd_loader_types.ctx_t,
-   IN p_agr ecd_loader_types.agr_t
+   IN p_ctx ECD_loader_Types.ctx_t,
+   IN p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
@@ -624,7 +625,7 @@ DECLARE
    l_result_Code int4;
    l_result_Info varchar;
    r             record;
-   l_part        ecd_loader_types.part_t;
+   l_part        ECD_loader_Types.part_t;
 BEGIN
 
    /*
@@ -646,83 +647,110 @@ $procedure$
 
 /* Загрузить историю параметров договора */
 CREATE PROCEDURE load_History(
-   IN p_ctx ecd_loader_types.ctx_t,
-   IN p_agr ecd_loader_types.agr_t
+   IN p_ctx ECD_loader_Types.ctx_t,
+   IN p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
-DECLARE
-   l_dAsgn_Date DATE;  -- дата подписи договора
+   #package
 BEGIN
-   -- в историю сохраняем с заменой
-   MERGE INTO CDH
+
+   IF p_agr.agr_id IS NULL THEN
+      CALL ecd_loader_err.raise_Business_Error (
+         'AGR_ID_IS_NULL',
+         'Невозможно загрузить историю параметров договора: не задан agr_id.'
+      );
+   END IF;
+
+   MERGE INTO cdh t
    USING (
-      SELECT * FROM (
-      SELECT NCDHAGRID, ICDHPART, CCDHTERM,
-             DECODE( CCDHTERM, 'DISCRATE', l_dAsgn_Date,  DCDHDATE )  DCDHDATE,
-             ICDHDSUB, CCDHCVAL, MCDHMVAL, ICDHIVAL, PCDHPVAL
-        FROM (
+      SELECT
+         p_agr.agr_id                                                AS ncdhagrid,
+         x.npart                                                     AS icdhpart,
+         x.ccdhterm                                                  AS ccdhterm,
+         CASE
+            WHEN x.ccdhterm = 'DISCRATE' THEN p_agr.d_sign
+            ELSE x.dcdhdate
+         END                                                         AS dcdhdate,
+         x.icdhdsub                                                  AS icdhdsub,
+         CASE
+            WHEN x.ccdhterm = 'DEND' THEN cdces.normalize_Date(x.ccdhcval)
+            ELSE x.ccdhcval
+         END                                                         AS ccdhcval,
+         x.mcdhmval                                                  AS mcdhmval,
+         x.icdhival                                                  AS icdhival,
+         x.pcdhpval                                                  AS pcdhpval
+      FROM (
          SELECT
-            l_agrData.agrID NCDHAGRID,
-            x.nPart         ICDHPART,
-            x.CCDHTERM,
-            TO_DATE  ( x.DCDHDATE_S, 'YYYY-MM-DD' ) DCDHDATE,
-            TO_NUMBER( x.ICDHDSUB_S )  ICDHDSUB,
-            DECODE   ( x.CCDHTERM, 'DEND', CDCes.Normalize_Date(CCDHCVAL), CCDHCVAL ) CCDHCVAL,
-            to_Money ( x.MCDHMVAL_S ) MCDHMVAL,
-            TO_NUMBER( x.ICDHIVAL_S ) ICDHIVAL,
-            TO_NUMBER( REPLACE( REPLACE( x.PCDHPVAL_S, ' ' ), ',', '.' ), FORMAT_PERCENT ) PCDHPVAL
-          FROM
-              XMLTABLE( '//CDA_PART/item/CDA_HTERM/item'
-                 PASSING l_xData
-              COLUMNS
-                    nPart      INTEGER      path './../../@part',
-                    CCDHTERM   VARCHAR2(50) path 'term',
-                    DCDHDATE_S VARCHAR2(10) path 'date',
-                    ICDHDSUB_S VARCHAR2(10) path 'sub',
-                    CCDHCVAL   VARCHAR2(50) path 'str_value',
-                    MCDHMVAL_S VARCHAR2(30) path 'sum_value',
-                    ICDHIVAL_s VARCHAR2(30) path 'int_value',
-                    PCDHPVAL_S VARCHAR2(30) path 'percent_value'
-           ) x
-      ) a
-      -- не добавляем параметры ранее даты покупки, 14.05.2020
-      -- не трогаем тип приобретения и %
-      WHERE (
-         a.CCDHTERM IN ('DISCRATE')
-         OR
-         a.dCdhDate >= l_dAsgn_Date
-      )) z
-   ) n
+            xt.npart,
+            xt.ccdhterm,
+            ecd_loader_xml.get_date_val(xt.dcdhdate_s)               AS dcdhdate,
+            ecd_loader_xml.to_numeric(xt.icdhdsub_s)                 AS icdhdsub,
+            xt.ccdhcval,
+            ecd_loader_xml.to_money(xt.mcdhmval_s)                   AS mcdhmval,
+            ecd_loader_xml.to_numeric(xt.icdhival_s)                 AS icdhival,
+            ecd_loader_xml.to_percent(xt.pcdhpval_s)                 AS pcdhpval
+         FROM XMLTABLE(
+            '//CDA_PART/item/CDA_HTERM/item'
+            PASSING p_ctx.input_Xml
+            COLUMNS
+               npart       numeric     PATH './../../@part',
+               ccdhterm    varchar(50) PATH 'term',
+               dcdhdate_s  varchar(30) PATH 'date',
+               icdhdsub_s  varchar(30) PATH 'sub',
+               ccdhcval    varchar(50) PATH 'str_value',
+               mcdhmval_s  varchar(50) PATH 'sum_value',
+               icdhival_s  varchar(50) PATH 'int_value',
+               pcdhpval_s  varchar(50) PATH 'percent_value'
+         ) xt
+      ) x
+      WHERE
+            x.ccdhterm = 'DISCRATE' OR x.dcdhdate >= p_agr.d_sign
+   ) s
    ON (
-      cdh.ncdhagrid = n.ncdhAgrid
-      AND
-      cdh.icdhPart  = n.icdhPart
-      AND
-      cdh.ccdhTerm  = n.ccdhTerm
-      AND
-      cdh.dcdhDate    = n.dcdhDate
-      AND
-      nvl( cdh.icdhdsub,0 ) = nvl( n.icdhdsub, 0 )
+         t.ncdhagrid = s.ncdhagrid
+     AND t.icdhpart  = s.icdhpart
+     AND t.ccdhterm  = s.ccdhterm
+     AND t.dcdhdate  = s.dcdhdate
+     AND coalesce(t.icdhdsub, 0) = coalesce(s.icdhdsub, 0)
    )
    WHEN MATCHED THEN
       UPDATE SET
-            cdh.CCDHCVAL = n.CCDHCVAL,
-            cdh.MCDHMVAL = n.MCDHMVAL,
-            cdh.ICDHIVAL = n.ICDHIVAL,
-            cdh.PCDHPVAL = n.PCDHPVAL
+         ccdhcval = s.ccdhcval,
+         mcdhmval = s.mcdhmval,
+         icdhival = s.icdhival,
+         pcdhpval = s.pcdhpval
    WHEN NOT MATCHED THEN
-      INSERT (   NCDHAGRID,   ICDHPART,   CCDHTERM,   DCDHDATE,   ICDHDSUB,   CCDHCVAL,   MCDHMVAL,   ICDHIVAL,   PCDHPVAL )
-      VALUES ( n.NCDHAGRID, n.ICDHPART, n.CCDHTERM, n.DCDHDATE, n.ICDHDSUB, n.CCDHCVAL, n.MCDHMVAL, n.ICDHIVAL, n.PCDHPVAL );END;
-      
+      INSERT (
+         ncdhagrid, icdhpart, ccdhterm, dcdhdate,
+         icdhdsub, ccdhcval, mcdhmval, icdhival, pcdhpval
+      )
+      VALUES (
+         s.ncdhagrid, s.icdhpart, s.ccdhterm, s.dcdhdate,
+         s.icdhdsub, s.ccdhcval, s.mcdhmval, s.icdhival, s.pcdhpval
+      );
+
+   CALL ecd_loader_ret.put_Info( 'cda', 'История параметров договора загружена.', NULL, p_agr.agr_id::varchar );
+
+EXCEPTION
+   WHEN NO_DATA_FOUND THEN
+      CALL ecd_loader_ret.put_Warn(
+         'cda',
+         'Договор не найден при загрузке истории параметров.',
+         NULL,
+         p_agr.agr_id::varchar
+      );
+   WHEN OTHERS THEN
+      CALL ecd_loader_err.rethrow_unhandled( 'ecd_loader_agr.load_History', SQLERRM );
+END;
 $procedure$
 
 
 /* Полный цикл обработки договора */
-CREATE PROCEDURE load_Agr(
-   IN OUT p_ctx ecd_loader_types.ctx_t,
+CREATE PROCEDURE load_Agr (
+   IN OUT p_ctx ECD_loader_Types.ctx_t,
    IN     p_cus_Id numeric,
-   OUT    p_agr    ecd_loader_types.agr_t
+   OUT    p_agr    ECD_loader_Types.agr_t
 )
 AS
 $procedure$
@@ -737,8 +765,10 @@ BEGIN
    CALL resolve_Purchase(p_ctx, p_agr);
 
    CALL create_Agr      (p_ctx, p_agr);
-
+   
    p_ctx.agr_Id := p_agr.agr_id;
+
+   CALL load_History    (p_ctx, p_agr);   
 
    CALL link_To_Pfl     (p_agr);
    CALL save_Uuid       (p_agr);
@@ -750,7 +780,7 @@ BEGIN
    CALL create_Parts    (p_ctx, p_agr);
    CALL load_History    (p_ctx, p_agr);
 
-   CALL ecd_loader_Ret.put_Data (
+   CALL ECD_loader_Ret.put_Data (
       'cda',
       NULL,
       p_agr.agr_id::varchar
