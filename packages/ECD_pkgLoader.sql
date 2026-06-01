@@ -308,7 +308,7 @@ DECLARE
    l_err_text   varchar;
 BEGIN
 
-   -- инициализация временной таблицы 
+   -- 1. инициализация временной таблицы 
    -- для возвращаемых параметров
    CALL ECD_loader_Ret.ret_Init();
    CALL ECD_loader_Ret.ret_Clear();
@@ -316,69 +316,45 @@ BEGIN
    p_result_code := RET_FAIL;
    p_result_info := NULL;
 
-   CALL ECD_loader_log.dbg('ECD_pkgLoader.load: begin');
+   CALL ECD_loader_log.dbg( 'ECD_pkgLoader.load: begin' );
 
    -- 2. Разбор входного XML с данными
+   -- весь XML ожидается в текстовом виде, пригодным для разбора
+   -- в случае ошибки ловим ее в общем обработчике исключений
    IF p_cdata_xml IS NULL OR btrim(p_cdata_xml) = '' THEN
       p_result_info := 'Переданный XML договора пуст.';
       CALL ECD_loader_Ret.put_Error( 'cda', p_result_info );
       RETURN;
    END IF;
 
-   BEGIN
-      l_input_xml := convert_from(p_bdata_xml, 'UTF8')::xml;
-   EXCEPTION
-      WHEN OTHERS THEN
-         p_result_code := RET_FAIL;
-         p_result_info := 'Переданный XML с данными не является валидным.';
-
-         CALL ecd_loader_ret.put_Error(
-            'cda',
-            p_result_info
-         );
-
-         RETURN;
-   END;
-
+   l_input_xml := p_cData_Xml::xml;
    
    --   3. Разбор XML параметров
-   BEGIN
-      IF p_cparameters_xml IS NOT NULL
-      THEN
-         l_params_xml := p_cparameters_xml::xml;
-      ELSE
-         l_params_xml := NULL;
-      END IF;
-   EXCEPTION
-      WHEN OTHERS THEN
-         p_result_code := RET_FAIL;
-         p_result_info := 'Переданный XML с параметрами не является валидным.';
-
-         CALL ecd_loader_ret.put_Error(
-            'cda',
-            p_result_info
-         );
-
-         RETURN;
-   END;
+   IF p_cparameters_xml IS NOT NULL
+   THEN
+      l_params_xml := p_cparameters_xml::xml;
+   ELSE
+      l_params_xml := NULL;
+   END IF;
 
    -- создаем контекст загрузки, в нем все параметры
    -- необходимые для загрузки договора
    l_ctx := create_And_Init_Ctx( p_prvid, l_input_Xml, l_params_Xml );
 
+
+   -- гланая процедура загрузки, 
+   -- решает только бизнес задачи
    CALL load_core(l_ctx);
 
    p_result_code := l_ctx.result_code;
    p_result_info := l_ctx.result_info;
 
-  /*
-      Если load_Core по какой-то причине не выставил текст результата.
-   */
-   IF p_result_code IS NULL THEN
-      p_result_code := RET_FAIL;
+   -- Если load_Core по какой-то причине не выставил текст результата.
+   IF p_result_Сode IS NULL THEN
+      p_result_Сode := RET_FAIL;
    END IF;
 
-   IF p_result_info IS NULL THEN
+   IF p_result_Info IS NULL THEN
       IF p_result_code = RET_OK THEN
          p_result_info := 'Загрузка завершена успешно.';
       ELSE
@@ -389,20 +365,34 @@ BEGIN
    CALL ECD_loader_log.dbg( 'ECD_pkgLoader.load: end, result_code = ' || coalesce(p_result_code::varchar, '<null>') );
 
 EXCEPTION
-   WHEN OTHERS THEN
-      CALL ECD_loader_err.capture_unhandled(
-         'ECD_pkgLoader.load',
-         l_err_text
-      );
 
-      p_result_code := RET_FAIL;
-      p_result_info := l_err_text;
+      WHEN OTHERS THEN
+         DECLARE
+            ex TS.T_StackedDiagnostics;
+         BEGIN
+           GET STACKED DIAGNOSTICS                       
+               ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
+               ex.MESSAGE_TEXT         = MESSAGE_TEXT,
+               ex.PG_EXCEPTION_DETAIL  = PG_EXCEPTION_DETAIL,
+               ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
+               ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
+         
+               CALL ecd_loader_Log.err ( 
+                  TS.WhenOthersError( cAction_Name, ex ), 'exception', NULL::varchar, NULL::varchar
+               );
 
-      CALL ECD_loader_Ret.put_Error('cda', p_result_info);
+               p_result_code := RET_FAIL;
+               p_result_info := TS.WhenOthersError( 'ECD_pkgLoader.load', ex );
+
+               CALL ECD_loader_Ret.put_Error('cda', p_result_info);
+
+         END; 
+
 END;
 $procedure$
 
 
+/* */
 CREATE FUNCTION load (
    p_cdata_xml       text,
    p_prvid           varchar,

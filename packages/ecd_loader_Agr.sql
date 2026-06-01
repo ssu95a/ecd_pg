@@ -293,16 +293,17 @@ CREATE PROCEDURE resolve_Purchase (
 AS
 $procedure$
    #package
+   #private
 DECLARE
    l_type  numeric;
    l_value numeric;
 BEGIN
 
-   IF p_agr.pfl_id IS NOT NULL OR p_agr.pfl_num IS NOT NULL THEN
+   IF p_agr.pfl_Id IS NOT NULL OR p_agr.pfl_num IS NOT NULL THEN
 
-      p_agr.pfl_id := ECD_loader_Map.get_CdSale_Id (
-         p_agr.agr_id,
-         coalesce( p_agr.pfl_id::varchar, p_agr.pfl_num),
+      p_agr.pfl_Id := ECD_loader_Map.get_CdSale_Id (
+         p_agr.agr_Id,
+         coalesce( p_agr.pfl_id::varchar, p_agr.pfl_num ),
          CASE WHEN p_agr.pfl_id IS NULL THEN 2 ELSE 1 END
       );
 
@@ -326,9 +327,9 @@ BEGIN
          p_agr.purchase_type := l_type;
 
          IF p_agr.purchase_type = 1 THEN
-            p_agr.coeff_discount := l_value;
+            p_agr.coeff_Discount := l_value;
          ELSIF p_agr.purchase_type = 2 THEN
-            p_agr.premium_sum := l_value;
+            p_agr.premium_Sum := l_value;
          END IF;
       END IF;
 

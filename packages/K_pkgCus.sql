@@ -1,3 +1,30 @@
+CREATE OR REPLACE PACKAGE K_pkgCus
+CREATE FUNCTION __init__()
+   RETURNS void
+AS
+$init$
+   #export off
+DECLARE
+   cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+
+   RET_OK   CONSTANT int4 := 0;
+   RET_FAIL CONSTANT int4 := -1;
+BEGIN
+   RAISE DEBUG 'Package "K_pkgCus" - % - initialized', cVersion;
+END;
+$init$
+
+
+/* Версия */
+CREATE FUNCTION get_Version( )
+   RETURNS varchar
+AS
+$function$
+BEGIN
+   RETURN cVersion;
+END;
+$function$
+
 
 /* Универсальная внутренняя процедура создания/обновления клиента */
 CREATE PROCEDURE manage_Cus (
@@ -55,6 +82,7 @@ BEGIN
       p_result_Info := coalesce( p_result_Info, 'Ошибка при вызове cus_action.cus_act2' );
 
       RETURN;
+
    END IF;
 
    /*
@@ -93,6 +121,7 @@ BEGIN
 
    p_cus_Id := account2.get_new_cus_num(p_cus_Type::int4);
    p_result_Code := RET_OK;
+
 END;
 $procedure$
 
@@ -593,9 +622,9 @@ EXCEPTION
    WHEN OTHERS THEN
       p_cus_Id      := 0;
       p_result_Code := RET_FAIL;
-      p_result_Info := 'Альтернативный поиск клиента: '
-                       || coalesce(p_result_Info, '<NULL>')
-                       || chr(10)
-                       || SQLERRM;
+      p_result_Info := 'Альтернативный поиск клиента: '|| coalesce( p_result_Info, '<NULL>') || chr(10) || SQLERRM;
 END;
 $procedure$
+
+-- end_Of_Package
+;

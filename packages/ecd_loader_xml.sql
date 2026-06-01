@@ -59,7 +59,7 @@ $function$
 
 
 /* Преобразует строку в денежную сумму */
-CREATE FUNCTION to_money(
+CREATE FUNCTION to_money (
    p_text varchar
 )
    RETURNS numeric
