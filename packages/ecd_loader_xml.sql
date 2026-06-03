@@ -6,7 +6,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_Xml
       #export off
    DECLARE
       
-      cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
 
       FORMAT_MONEY   CONSTANT varchar(50) := 'FM9999999999999999.99';
       FORMAT_PERCENT CONSTANT varchar(50) := 'FM9999999999999999.99999999999999999';
@@ -44,7 +44,7 @@ DECLARE
    l_text varchar;
 BEGIN
    IF p_text IS NULL OR btrim(p_text) = '' THEN
-      RETURN NULL;
+      RETURN NULL::numeric;
    END IF;
 
    l_text := btrim(p_text);
@@ -53,7 +53,7 @@ BEGIN
 
 EXCEPTION
    WHEN OTHERS THEN
-      RETURN NULL;
+      RETURN NULL::numeric;
 END;
 $function$
 
@@ -247,7 +247,7 @@ AS
 $function$
    #package
 BEGIN
-   RETURN to_numeric( get_string_val(p_xml, p_xpath) );
+   RETURN ECD_loader_Xml.to_numeric( ECD_loader_Xml.get_string_val(p_xml, p_xpath) );
 END;
 $function$
 
@@ -262,7 +262,7 @@ AS
 $function$
    #package
 BEGIN
-   RETURN to_money(get_string_val(p_xml, p_xpath));
+   RETURN ECD_loader_Xml.to_money( ECD_loader_Xml.get_string_val(p_xml, p_xpath));
 END;
 $function$
 
@@ -277,7 +277,7 @@ AS
 $function$
    #package
 BEGIN
-   RETURN to_percent(get_string_val(p_xml, p_xpath));
+   RETURN ECD_loader_Xml.to_percent( ECD_loader_Xml.get_string_val(p_xml, p_xpath));
 END;
 $function$
 
@@ -326,7 +326,7 @@ DECLARE
    l_value varchar;
 BEGIN
    l_xpath := '//parameter[@name="' || p_name || '"]/text()';
-   l_value := get_string_val(p_params_xml, l_xpath);
+   l_value := ECD_loader_Xml.get_string_val(p_params_xml, l_xpath);
 
    RETURN coalesce(l_value, p_default);
 END;

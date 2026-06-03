@@ -7,7 +7,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_err
    #export off
    DECLARE
 
-      cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
 
       cErr_Prefix_Business CONSTANT varchar(30) := 'ECD_BUS_';
       cErr_Prefix_Config   CONSTANT varchar(30) := 'ECD_CFG_';
@@ -87,8 +87,8 @@ CREATE OR REPLACE PACKAGE ecd_loader_err
 
       l_hint := cErr_Prefix_Business || coalesce( p_code, 'UNKNOWN');
 
-      CALL set_last_error    ( p_message, p_message );
-      CALL ecd_loader_log.err('BUSINESS ERROR [' || l_hint || '] ' || coalesce(p_message, '<empty>'));
+      CALL ECD_loader_Err.set_last_error( p_message, p_message );
+      CALL ECD_loader_Log.err('BUSINESS ERROR [' || l_hint || '] ' || coalesce(p_message, '<empty>'));
 
       RAISE EXCEPTION '%', coalesce(p_message, 'Business error')
          USING ERRCODE = 'P0001',
@@ -110,7 +110,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_err
    BEGIN
       l_hint := cErr_Prefix_Config || coalesce(p_code, 'UNKNOWN');
 
-      CALL set_last_error(p_message, p_message);
+      CALL ECD_loader_Err.set_last_error(p_message, p_message);
       CALL ecd_loader_log.err('CONFIG ERROR [' || l_hint || '] ' || coalesce(p_message, '<empty>'));
 
       RAISE EXCEPTION '%', coalesce(p_message, 'Configuration error')
@@ -133,7 +133,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_err
    BEGIN
       l_hint := cErr_Prefix_Data || coalesce(p_code, 'UNKNOWN');
 
-      CALL set_last_error    ( p_message, p_message );
+      CALL ECD_loader_Err.set_last_error    ( p_message, p_message );
       CALL ecd_loader_log.err( 'DATA ERROR [' || l_hint || '] ' || coalesce(p_message, '<empty>') );
 
       RAISE EXCEPTION '%', coalesce( p_message, 'Data error')

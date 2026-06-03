@@ -6,7 +6,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_Dep
    $init$
    #export off
    DECLARE
-      cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
 
       RET_OK   CONSTANT int4 := 0;
       RET_FAIL CONSTANT int4 := -1;
@@ -27,7 +27,7 @@ END;
 $function$
 
 
-/* РЎРѕР·РґР°РЅРёРµ РєР»РёРµРЅС‚Р° */
+/* Создание клиента */
 CREATE PROCEDURE create_Cus(
    IN  p_xml         xml,
    IN  p_run_Mfv     int4,
@@ -43,18 +43,9 @@ BEGIN
    p_result_Code := RET_FAIL;
    p_result_Info := NULL;
 
-   CALL ecd_loader_Log.dbg('ecd_loader_Dep.create_Cus');
+   CALL ECD_loader_Log.dbg('ecd_loader_Dep.create_Cus');
 
-   /*
-      РћР¶РёРґР°РµРјР°СЏ РјРѕРґРµР»СЊ:
-      IF K_pkgCUS.createCus( p_xml, p_run_Mfv, p_cus_Id, p_result_Info ) = RET_OK THEN ...
-   */
-
-   IF K_pkgCUS.createCus( p_xml, p_run_Mfv, p_cus_Id, p_result_Info ) = RET_OK THEN
-      p_result_Code := RET_OK;
-   ELSE
-      p_result_Code := RET_FAIL;
-   END IF;
+   call K_pkgCUS.create_Cus( p_xml, p_run_Mfv, p_cus_Id, p_result_Code, p_result_Info );
 
 EXCEPTION
    WHEN OTHERS THEN
@@ -68,7 +59,7 @@ END;
 $procedure$
 
 
-/* РЎРѕР·РґР°РЅРёРµ РєСЂРµРґРёС‚РЅРѕРіРѕ РґРѕРіРѕРІРѕСЂР° */
+/* Создание кредитного договора */
 CREATE PROCEDURE new_Ces(
    IN  p_agr         ecd_loader_types.agr_t,
    OUT p_result_Code int4,
@@ -135,7 +126,7 @@ END;
 $procedure$
 
 
-/* РЎРѕР·РґР°РЅРёРµ С‡Р°СЃС‚Рё РґРѕРіРѕРІРѕСЂР° */
+/* Создание части договора */
 CREATE PROCEDURE new_Ces_Part(
    IN  p_part        ecd_loader_types.part_t,
    OUT p_result_Code int4,
@@ -158,7 +149,7 @@ BEGIN
    );
 
    /*
-      РџСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёРµ ecd_loader_types.part_t -> CDCes.Part_Details
+      Преобразование ecd_loader_types.part_t -> CDCes.Part_Details
    */
    l_new_Part.agrId  := p_part.agr_id;
    l_new_Part.part   := p_part.part_no;
@@ -201,7 +192,7 @@ END;
 $procedure$
 
 
-/* РћР±РЅРѕРІР»РµРЅРёРµ РёСЃС‚РѕСЂРёРё РїР°СЂР°РјРµС‚СЂРѕРІ */
+/* Обновление истории параметров */
 CREATE PROCEDURE update_History(
    IN p_agr_Id  numeric,
    IN p_part    numeric,
@@ -246,7 +237,7 @@ END;
 $procedure$
 
 
-/* РЎРѕС…СЂР°РЅРµРЅРёРµ UUID */
+/* Сохранение UUID */
 CREATE PROCEDURE merge_Cb_Uuid(
    IN  p_agr_Id      numeric,
    IN  p_uuid        varchar,
@@ -284,7 +275,7 @@ END;
 $procedure$
 
 
-/* РЈСЃС‚Р°РЅРѕРІРєР° СЃС‚Р°РґРёРё РњРЎР¤Рћ */
+/* Установка стадии МСФО */
 CREATE PROCEDURE set_Ifrs_Stage(
    IN  p_agr_Id      numeric,
    IN  p_cus_Id      numeric,
@@ -320,7 +311,7 @@ END;
 $procedure$
 
 
-/* Р’С‹Р·РѕРІ handler-Р° РєР»РёРµРЅС‚Р° */
+/* Вызов handler-а клиента
 CREATE PROCEDURE run_Cus_Handler(
    IN  p_cus_Id       numeric,
    IN  p_is_New       int4,
@@ -364,9 +355,9 @@ EXCEPTION
       p_result_Info := SQLERRM;
 END;
 $procedure$
+ 
 
-
-/* Р’С‹Р·РѕРІ handler-Р° СЃС‡РµС‚РѕРІ */
+/* Вызов handler-а счетов */
 CREATE PROCEDURE run_Acc_Handler(
    IN  p_agr_Id       numeric,
    OUT p_result_Code  int4,
@@ -404,9 +395,9 @@ EXCEPTION
       p_result_Info := SQLERRM;
 END;
 $procedure$
+*/
 
-
-/* РџРµСЂРµСЃС‡РµС‚ РѕР±РѕСЂРѕС‚РєРё */
+/* Пересчет оборотки */
 CREATE PROCEDURE recalc_Balance(
    IN  p_agr_Id       numeric,
    OUT p_result_Code  int4,
@@ -432,7 +423,7 @@ END;
 $procedure$
 
 
-/* РџРµСЂРµРІРѕРґ РґРѕРіРѕРІРѕСЂР° РІ СЂР°Р±РѕС‡РёР№ */
+/* Перевод договора в рабочий */
 CREATE PROCEDURE make_Working(
    IN  p_agr_Id       numeric,
    OUT p_result_Code  int4,
@@ -455,10 +446,10 @@ BEGIN
 
       IF CDState.guess_And_Set_Status( p_agr_Id ) IS NOT NULL THEN
          p_result_Code := RET_OK;
-         p_result_Info := 'Р”РѕРіРѕРІРѕСЂ РїРµСЂРµРІРµРґРµРЅ РІ РґРµР№СЃС‚РІСѓСЋС‰РёР№ СЃС‚Р°С‚СѓСЃ.';
+         p_result_Info := 'Договор переведен в действующий статус.';
       ELSE
          p_result_Code := RET_FAIL;
-         p_result_Info := 'РќРµ СѓРґР°Р»РѕСЃСЊ РїРµСЂРµРІРµСЃС‚Рё РґРѕРіРѕРІРѕСЂ РІ РґРµР№СЃС‚РІСѓСЋС‰РёР№ СЃС‚Р°С‚СѓСЃ.';
+         p_result_Info := 'Не удалось перевести договор в действующий статус.';
       END IF;
 
    ELSE
@@ -474,7 +465,7 @@ END;
 $procedure$
 
 
-/* РЈСЃС‚Р°РЅРѕРІРєР° РґРѕРї. Р°С‚СЂРёР±СѓС‚Р° */
+/* Установка доп. атрибута */
 CREATE PROCEDURE set_Attr_Value(
    IN     p_location_Id numeric,
    IN OUT p_extend_Id   numeric,

@@ -7,7 +7,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_Ret
    #export off
    DECLARE
 
-      cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
 
       cTr_Data CONSTANT int4 := 1;
       cTr_Msg  CONSTANT int4 := 2;
@@ -36,7 +36,7 @@ $procedure$
    #private
 BEGIN
    CREATE TEMP TABLE IF NOT EXISTS ecd_ret (
-      itr   numeric       NOT NULL,
+      itr   numeric(3) NOT NULL,
       cent  varchar(20),
       ci_id varchar(20),
       ce_id varchar(100),
@@ -52,7 +52,7 @@ CREATE PROCEDURE ret_Init()
 AS
 $procedure$
 BEGIN
-   CALL ensure_table();
+   CALL ECD_loader_Ret.ensure_table();
 END;
 $procedure$
 
@@ -62,7 +62,7 @@ CREATE PROCEDURE ret_Clear()
 AS
 $procedure$
 BEGIN
-   CALL ensure_table();
+   CALL ECD_loader_Ret.ensure_table();
    DELETE FROM ecd_ret;
 END;
 $procedure$
@@ -79,7 +79,7 @@ AS
 $procedure$
    #private
 BEGIN
-   CALL ensure_table();
+   CALL ECD_loader_Ret.ensure_table();
 
    INSERT INTO ecd_ret(itr, cent, ci_id, ce_id, ctext)
    VALUES (cTr_Msg, p_ent_id, p_int_id, p_ext_id, p_text);
@@ -95,12 +95,17 @@ CREATE PROCEDURE put_Data(
 AS
 $procedure$
 BEGIN
-   CALL ensure_table();
+      
+   call ECD_loader_Log.dbg( 'put_Data: ent_Id = ' || p_ent_id || ', ext_Id = ' || p_ext_id || ', int_Id = ' || p_int_id );
+
+   CALL ECD_loader_Ret.ensure_table();
 
    IF p_ent_id IS NOT NULL AND p_int_id IS NOT NULL THEN
       INSERT INTO ecd_ret(itr, cent, ci_id, ce_id)
       VALUES (cTR_Data, p_ent_id, p_int_id, p_ext_id);
+   
    END IF;
+
 END;
 $procedure$
 
@@ -114,7 +119,7 @@ CREATE PROCEDURE put_Info(
 AS
 $procedure$
 BEGIN
-   CALL put_Msg( p_ent_id, p_text, p_ext_id, p_int_id );
+   CALL ECD_loader_Ret.put_Msg( p_ent_id, p_text, p_ext_id, p_int_id );
 END;
 $procedure$
 
@@ -128,7 +133,7 @@ CREATE PROCEDURE put_Warn (
 AS
 $procedure$
 BEGIN
-   CALL put_Msg(p_ent_id, '[WRN] ' || p_text, p_ext_id, p_int_id);
+   CALL ECD_loader_Ret.put_Msg(p_ent_id, '[WRN] ' || p_text, p_ext_id, p_int_id);
 END;
 $procedure$
 
@@ -142,7 +147,7 @@ CREATE PROCEDURE put_Error(
 AS
 $procedure$
 BEGIN
-   CALL put_Msg(p_ent_id, '[ERR] ' || p_text, p_ext_id, p_int_id);
+   CALL ECD_loader_Ret.put_Msg(p_ent_id, '[ERR] ' || p_text, p_ext_id, p_int_id);
 END;
 $procedure$
 
@@ -154,7 +159,7 @@ $function$
 DECLARE
    l_cnt numeric;
 BEGIN
-   CALL ensure_table();
+   CALL ECD_loader_Ret.ensure_table();
 
    SELECT count(*)
      INTO l_cnt

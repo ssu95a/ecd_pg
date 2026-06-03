@@ -4,11 +4,19 @@ CREATE FUNCTION __init__()
 AS
 $init$
    #export off
+   #import ac, account2
 DECLARE
-   cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+   cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
 
    RET_OK   CONSTANT int4 := 0;
    RET_FAIL CONSTANT int4 := -1;
+
+   af_cusData account2.cus_type;
+
+   /* список ДУЛ */
+   af_dcmList xxi.cus_docum[];
+
+
 BEGIN
    RAISE DEBUG 'Package "K_pkgCus" - % - initialized', cVersion;
 END;
@@ -52,14 +60,14 @@ BEGIN
    p_result_Code := RET_FAIL;
    p_result_Info := NULL;
 
-   RAISE DEBUG 'K_PkgCus.manage_Cus: operation=%, run_mfv=%', p_operation, p_run_Mfv;
+   call ECD_loader_Log.dbg( 'enter_f: K_PkgCus.manage_Cus: operation=' || p_operation ||  ', run_mfv=' || p_run_Mfv );
 
-   l_cusData := x2cus_t(p_xml);
-   l_dcmList := x2dcm_List(p_xml);
-   l_adrList := x2addr_List(p_xml);
-   l_gcsList := x2cgs_List(p_xml);
-   l_telList := x2phn_List(p_xml);
-   l_emlList := x2mail_List(p_xml);
+   l_cusData := K_pkgCus.x2cus_t    (p_xml);
+   l_dcmList := K_pkgCus.x2dcm_List (p_xml);
+   l_adrList := K_pkgCus.x2addr_List(p_xml);
+   l_gcsList := K_pkgCus.x2cgs_List (p_xml);
+   l_telList := K_pkgCus.x2phn_List (p_xml);
+   l_emlList := K_pkgCus.x2mail_List(p_xml);
 
    CALL cus_action.cus_act2(
       p_cus_Id,
@@ -138,6 +146,7 @@ DECLARE
    l_ret_A2 char(2);
    l_len    int4;
 BEGIN
+
    IF p_any_Id IS NULL THEN
       RETURN NULL;
    END IF;
@@ -146,9 +155,9 @@ BEGIN
 
    IF translate(p_any_Id, '_0123456789', '_') IS NULL THEN
 
-      SELECT a.calpha_2
+      SELECT a.calfa_2
         INTO l_ret_A2
-        FROM ok_sm a
+        FROM xxi.ok_sm a
        WHERE a.cdigital = p_any_Id;
 
       IF FOUND THEN
@@ -156,39 +165,43 @@ BEGIN
       END IF;
 
       RETURN NULL;
+
    END IF;
 
    IF l_len = 2 THEN
-      SELECT a.calpha_2
+
+      SELECT a.calfa_2
         INTO l_ret_A2
-        FROM ok_sm a
-       WHERE a.calpha_2 = upper(p_any_Id);
+        FROM xxi.ok_sm a
+       WHERE a.calfa_2 = upper(p_any_Id);
 
       IF FOUND THEN
          RETURN l_ret_A2;
       END IF;
+
    ELSIF l_len = 3 THEN
-      SELECT a.calpha_2
-        INTO l_ret_A2
-        FROM ok_sm a
-       WHERE a.calpha_3 = upper(p_any_Id);
 
-      IF FOUND THEN
-         RETURN l_ret_A2;
-      END IF;
+      SELECT a.calfa_2
+             INTO l_ret_A2
+        FROM xxi.ok_sm a 
+       WHERE a.calfa_3 = upper(p_any_Id);
+
+      IF FOUND THEN RETURN l_ret_A2; END IF;
+
    END IF;
 
-   SELECT a.calpha_2
+   SELECT a.calfa_2
      INTO l_ret_A2
-     FROM ok_sm a
+     FROM xxi.ok_sm a
     WHERE upper(a.cshortname) = upper(p_any_Id)
        OR upper(a.clongname)  = upper(p_any_Id);
 
-   IF FOUND THEN
-      RETURN l_ret_A2;
+   IF FOUND THEN 
+      RETURN l_ret_A2; 
    END IF;
 
    RETURN NULL;
+
 END;
 $function$
 
@@ -306,10 +319,11 @@ BEGIN
    l_ret.cCusBirthPlace  := r.cCusBirthPlace;
    l_ret.cCusSnils       := r.cCusSnils;
    l_ret.iDsmr           := r.iDsmr;
-   l_ret.cCusCountry1    := cty_AnyId_2_A2(coalesce(r.cCusCountry1, r.cCusCountry1_2));
-   l_ret.cCusCountry2    := cty_AnyId_2_A2(r.cCusCountry2);
+   l_ret.cCusCountry1    := K_pkgCus.cty_AnyId_2_A2( coalesce(r.cCusCountry1, r.cCusCountry1_2) );
+   l_ret.cCusCountry2    := K_pkgCus.cty_AnyId_2_A2( r.cCusCountry2 );
 
    RETURN l_ret;
+
 END;
 $function$
 
@@ -318,48 +332,56 @@ $function$
 CREATE FUNCTION x2dcm_List(
    IN p_xml xml
 )
-   RETURNS xxi._cus_docum
+RETURNS xxi._cus_docum
+LANGUAGE plpgsql
 AS
 $function$
-   #private
 BEGIN
    RETURN (
-      SELECT array_agg(row(y.*)::xxi.cus_docum)
-        FROM (
-           SELECT
-              x.id_doc,
-              NULL::numeric                AS iCusNum,
-              CASE x.is_Main WHEN '1' THEN 'Y' ELSE 'N' END AS pref,
-              x.id_doc_tp,
-              NULL::numeric                AS doc_npp,
-              x.doc_num,
-              x.doc_ser,
-              to_date(x.doc_date_s,   'YYYY-MM-DD') AS doc_date,
-              x.doc_agency,
-              to_date(x.doc_e_date_s, 'YYYY-MM-DD') AS doc_period,
-              x.doc_subdiv,
-              NULL::bytea                  AS broad_id,
-              NULL::bytea                  AS photo_id,
-              NULL::bytea                  AS sign_id,
-              NULL::numeric                AS doc_cnt,
-              NULL::timestamp              AS doc_active,
-              NULL::timestamp              AS doc_active_end,
-              0::numeric                   AS id_mode
-             FROM XMLTABLE(
-                '//CUS_DOC/item'
-                PASSING p_xml
-                COLUMNS
-                   id_doc       numeric      PATH 'id_doc',
-                   is_main      varchar(1)   PATH '@main',
-                   id_doc_tp    numeric      PATH 'id_doc_tp',
-                   doc_ser      varchar(20)  PATH 'doc_ser',
-                   doc_num      varchar(20)  PATH 'doc_num',
-                   doc_date_s   varchar(20)  PATH 'doc_date',
-                   doc_e_date_s varchar(20)  PATH 'doc_expriry_date',
-                   doc_agency   varchar(200) PATH 'doc_agency',
-                   doc_subdiv   varchar(20)  PATH 'doc_subdiv'
-             ) x
-        ) y
+      SELECT coalesce(
+         array_agg(
+            ROW(
+               x.id_doc,                                           -- id_doc
+               NULL::numeric,                                      -- icusnum
+               CASE x.is_main WHEN '1' THEN 'Y' ELSE 'N' END,      -- pref
+               x.id_doc_tp,                                        -- id_doc_tp
+               NULL::numeric,                                      -- doc_npp
+               x.doc_num::varchar(60),                             -- doc_num
+               x.doc_ser::varchar(10),                             -- doc_ser
+               to_date(x.doc_date_s,   'YYYY-MM-DD'),              -- doc_date
+               x.doc_agency::varchar(210),                         -- doc_agency
+               to_date(x.doc_e_date_s, 'YYYY-MM-DD'),              -- doc_period
+               x.doc_subdiv::varchar(15),                          -- doc_subdiv
+               NULL::numeric,                                      -- broad_id
+               NULL::numeric,                                      -- photo_id
+               NULL::numeric,                                      -- sign_id
+               NULL::varchar(3),                                   -- doc_cnt
+               NULL::date,                                         -- doc_active
+               NULL::date,                                         -- doc_active_end
+               0::numeric,                                         -- id_mode
+               NULL::varchar(100),                                 -- doc_last_name
+               NULL::varchar(60),                                  -- doc_first_name
+               NULL::varchar(60),                                  -- doc_middle_name
+               NULL::date,                                         -- doc_present
+               NULL::varchar(100)                                  -- docsernum
+            )::xxi.cus_docum
+         ),
+         '{}'::xxi._cus_docum
+      )
+      FROM XMLTABLE(
+         '//CUS_DOC/item'
+         PASSING p_xml
+         COLUMNS
+            id_doc       numeric      PATH 'id_doc',
+            is_main      varchar(1)   PATH '@main',
+            id_doc_tp    numeric      PATH 'id_doc_tp',
+            doc_ser      varchar(20)  PATH 'doc_ser',
+            doc_num      varchar(20)  PATH 'doc_num',
+            doc_date_s   varchar(20)  PATH 'doc_date',
+            doc_e_date_s varchar(20)  PATH 'doc_expriry_date',
+            doc_agency   varchar(200) PATH 'doc_agency',
+            doc_subdiv   varchar(20)  PATH 'doc_subdiv'
+      ) x
    );
 END;
 $function$
@@ -369,95 +391,144 @@ $function$
 CREATE FUNCTION x2addr_List(
    IN p_xml xml
 )
-   RETURNS xxi._cus_addr
+RETURNS xxi._cus_addr
 AS
 $function$
-   #private
 BEGIN
    RETURN (
-      SELECT array_agg(row(y.*)::xxi.cus_addr)
-        FROM (
-           SELECT
-              x.id_addr,
-              NULL::numeric AS iCusNum,
-              x.addr_type,
-              x.code,
-              cty_AnyId_2_A2(coalesce(x.country, x.country_name)) AS country,
-              x.post_index,
-              coalesce(x.reg_num, substr(x.reg_name_kladr, 1, 2)) AS reg_num,
-              coalesce(x.area, (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.area_kladr)) AS area,
-              coalesce(x.reg_name, (SELECT a.cname || ' ' || a.socr FROM v_kladr_base a WHERE a.code = x.reg_name_kladr)) AS reg_name,
-              coalesce(x.city, (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.city_kladr)) AS city,
-              coalesce(x.punct_name, (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.punct_name_kladr)) AS punct_name,
-              coalesce(x.city_type, (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.city_kladr)) AS city_type,
-              coalesce(x.area_type, (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.area_kladr)) AS area_type,
-              coalesce(x.infr_name, (SELECT a.cname FROM v_kladr_street a WHERE a.code = x.infr_name_kladr)) AS infr_name,
-              x.dom,
-              coalesce(x.punct_type, (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.punct_name_kladr)) AS punct_type,
-              x.korp,
-              x.stroy,
-              coalesce(x.infr_type, (SELECT a.socr FROM v_kladr_street a WHERE a.code = x.infr_name_kladr)) AS infr_type,
-              x.kv,
-              x.office,
-              x.porch,
-              NULL::varchar      AS oksm_code,
-              x.address_inline,
-              x.stroy_type,
-              NULL::date,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              x.addr_guid,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar,
-              NULL::varchar
-             FROM XMLTABLE(
-                '//CUS_ADDRESS/item'
-                PASSING p_xml
-                COLUMNS
-                   id_addr          numeric      PATH 'id_addr',
-                   addr_type        numeric      PATH '@type',
-                   code             varchar(20)  PATH 'code',
-                   country          varchar(100) PATH 'country',
-                   country_name     varchar(100) PATH 'country_name',
-                   reg_num          varchar(5)   PATH 'reg_num',
-                   reg_name         varchar(100) PATH 'reg_name',
-                   reg_name_kladr   varchar(50)  PATH 'reg_name/@kladr_code',
-                   area_type        varchar(10)  PATH 'area_type',
-                   area             varchar(100) PATH 'area_name',
-                   area_kladr       varchar(100) PATH 'area_name/@kladr_code',
-                   city_type        varchar(100) PATH 'city_type',
-                   city             varchar(100) PATH 'city',
-                   city_kladr       varchar(50)  PATH 'city/@kladr_code',
-                   punct_type       varchar(5)   PATH 'place_type',
-                   punct_name       varchar(100) PATH 'place_name',
-                   punct_name_kladr varchar(50)  PATH 'place_name/@kladr_code',
-                   post_index       varchar(50)  PATH 'zipcode',
-                   infr_type        varchar(10)  PATH 'infr_type',
-                   infr_name        varchar(100) PATH 'infr_name',
-                   infr_name_kladr  varchar(50)  PATH 'infr_name/@kladr_code',
-                   dom              varchar(10)  PATH 'house',
-                   korp             varchar(10)  PATH 'house_bl',
-                   stroy            varchar(10)  PATH 'house_st',
-                   kv               varchar(10)  PATH 'flat',
-                   porch            varchar(10)  PATH 'porch',
-                   office           varchar(10)  PATH 'office',
-                   address_inline   varchar(1000) PATH 'non_resident_address',
-                   stroy_type       numeric       PATH 'house_st_type',
-                   addr_guid        varchar(100)  PATH 'fias_guid'
-             ) x
-        ) y
+      SELECT coalesce(
+         array_agg(
+            ROW(
+               x.id_addr,  -- 1  id_addr
+               NULL::numeric,  -- 2  icusnum
+               x.addr_type,  -- 3  addr_type
+               x.code::varchar(20),  -- 4  code
+               K_pkgCus.cty_AnyId_2_A2(coalesce(x.country, x.country_name))::varchar(3),  -- 5  country
+               x.post_index::varchar(10),  -- 6  post_index
+
+               coalesce(
+                  NULLIF(trim(x.reg_num), '')::numeric,
+                  NULLIF(substr(x.reg_name_kladr, 1, 2), '')::numeric
+               ),  -- 7  reg_num
+
+               coalesce(
+                  x.area,
+                  (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.area_kladr)
+               )::varchar(256),  -- 8  area
+
+               coalesce(
+                  x.reg_name,
+                  (SELECT a.cname || ' ' || a.socr FROM v_kladr_base a WHERE a.code = x.reg_name_kladr)
+               )::varchar(51),  -- 9  reg_name
+
+               coalesce(
+                  x.city,
+                  (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.city_kladr)
+               )::varchar(100),  -- 10 city
+
+               coalesce(
+                  x.punct_name,
+                  (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.punct_name_kladr)
+               )::varchar(100),  -- 11 punct_name
+
+               coalesce(
+                  x.city_type,
+                  (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.city_kladr)
+               )::varchar(60),  -- 12 city_type
+
+               coalesce(
+                  x.area_type,
+                  (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.area_kladr)
+               )::varchar(60),  -- 13 area_type
+
+               coalesce(
+                  x.infr_name,
+                  (SELECT a.cname FROM v_kladr_street a WHERE a.code = x.infr_name_kladr)
+               )::varchar(250),  -- 14 infr_name
+
+               x.dom::varchar(100),  -- 15 dom
+
+               coalesce(
+                  x.punct_type,
+                  (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.punct_name_kladr)
+               )::varchar(60),  -- 16 punct_type
+
+               x.korp::varchar(60),  -- 17 korp
+               x.stroy::varchar(60),  -- 18 stroy
+
+               coalesce(
+                  x.infr_type,
+                  (SELECT a.socr FROM v_kladr_street a WHERE a.code = x.infr_name_kladr)
+               )::varchar(60),  -- 19 infr_type
+
+               x.kv::varchar(60),  -- 20 kv
+               x.office::varchar(100),  -- 21 office
+               x.porch::varchar(10),  -- 22 porch
+               NULL::varchar(5),      -- 23 oksm_code
+               x.address_inline::varchar(210),  -- 24 address_inline
+               x.stroy_type,         -- 25 stroy_type
+
+               NULL::varchar(120),  -- 26 plan_name
+               NULL::varchar(60),   -- 27 plan_type
+               NULL::varchar(10),   -- 28 dom_type
+               NULL::varchar(200),  -- 29 alt_country_name
+
+               x.addr_guid::varchar(36),  -- 30 addr_guid
+
+               NULL::varchar(250),  -- 31 district
+               NULL::varchar(250),  -- 32 settlement
+               0::numeric,          -- 33 mun
+               NULL::varchar(60),   -- 34 distr_type
+               NULL::varchar(60),   -- 35 settl_type
+               NULL::varchar(250),  -- 36 stead
+               NULL::varchar(10),   -- 37 kv_type
+               NULL::varchar(60),   -- 38 room
+               NULL::varchar(10),   -- 39 room_type
+               NULL::varchar(60),   -- 40 carplace
+               NULL::numeric        -- 41 ext_id
+            )::xxi.cus_addr
+         ),
+         '{}'::xxi._cus_addr
+      )
+      FROM XMLTABLE(
+         '//CUS_ADDRESS/item'
+         PASSING p_xml
+         COLUMNS
+            id_addr          numeric       PATH 'id_addr',
+            addr_type        numeric       PATH '@type',
+            code             varchar(20)   PATH 'code',
+            country          varchar(100)  PATH 'country',
+            country_name     varchar(100)  PATH 'country_name',
+            reg_num          varchar(5)    PATH 'reg_num',
+            reg_name         varchar(100)  PATH 'reg_name',
+            reg_name_kladr   varchar(50)   PATH 'reg_name/@kladr_code',
+            area_type        varchar(10)   PATH 'area_type',
+            area             varchar(100)  PATH 'area_name',
+            area_kladr       varchar(100)  PATH 'area_name/@kladr_code',
+            city_type        varchar(100)  PATH 'city_type',
+            city             varchar(100)  PATH 'city',
+            city_kladr       varchar(50)   PATH 'city/@kladr_code',
+            punct_type       varchar(5)    PATH 'place_type',
+            punct_name       varchar(100)  PATH 'place_name',
+            punct_name_kladr varchar(50)   PATH 'place_name/@kladr_code',
+            post_index       varchar(50)   PATH 'zipcode',
+            infr_type        varchar(10)   PATH 'infr_type',
+            infr_name        varchar(100)  PATH 'infr_name',
+            infr_name_kladr  varchar(50)   PATH 'infr_name/@kladr_code',
+            dom              varchar(10)   PATH 'house',
+            korp             varchar(10)   PATH 'house_bl',
+            stroy            varchar(10)   PATH 'house_st',
+            kv               varchar(10)   PATH 'flat',
+            porch            varchar(10)   PATH 'porch',
+            office           varchar(10)   PATH 'office',
+            address_inline   varchar(1000) PATH 'non_resident_address',
+            stroy_type       numeric       PATH 'house_st_type',
+            addr_guid        varchar(100)  PATH 'fias_guid'
+      ) x
    );
 END;
 $function$
+
 
 
 /* XML -> категории/группы */
@@ -484,51 +555,55 @@ $function$
 
 
 /* XML -> телефоны */
-CREATE FUNCTION x2phn_List(
+CREATE FUNCTION x2phn_List (
    IN p_xml xml
 )
-   RETURNS xxi._cus_phone
+   RETURNS 
+      xxi._cus_phone
 AS
 $function$
-   #private
 BEGIN
    RETURN (
-      SELECT array_agg(row(y.*)::xxi.cus_phone)
-        FROM (
-           SELECT
-              x.id_phone,
-              NULL::numeric AS iCusNum,
-              x.ph_type,
-              NULL::numeric AS ph_npp,
-              x.ph_num,
-              x.ph_cnt,
-              x.ph_city,
-              x.ph_ext_num,
-              NULL::varchar AS ph_numnum,
-              x.sms,
-              x.country,
-              NULL::numeric AS utc,
-              NULL::varchar AS accept_status,
-              NULL::varchar AS active_status,
-              x.remarks,
-              NULL::varchar AS findnum,
-              NULL::timestamp AS accept_date,
-              NULL::timestamp AS check_date
-             FROM XMLTABLE(
-                '//CUS_PHONE/item[count(*)>0]'
-                PASSING p_xml
-                COLUMNS
-                   id_phone   numeric      PATH 'id_phone',
-                   ph_type    numeric      PATH 'phone_type',
-                   ph_num     varchar(300) PATH 'phone_number',
-                   ph_cnt     numeric      PATH 'country_phone_code',
-                   ph_city    numeric      PATH 'city_code',
-                   ph_ext_num varchar(10)  PATH 'add_code',
-                   sms        varchar(1)   PATH 'sms',
-                   country    varchar(5)   PATH 'country_code',
-                   remarks    varchar(500) PATH 'note'
-             ) x
-        ) y
+      SELECT coalesce(
+         array_agg(
+            ROW(
+               x.id_phone,                                      -- id_phone
+               NULL::numeric,                                   -- icusnum
+               x.ph_type,                                       -- ph_type
+               NULL::numeric,                                   -- ph_npp
+               x.ph_num::varchar(20),                           -- ph_num
+               x.ph_cnt,                                        -- ph_cnt
+               x.ph_city::varchar(20),                          -- ph_city
+               NULLIF(trim(x.ph_ext_num), '')::numeric,         -- ph_ext_num
+               NULL::numeric,                                   -- ph_numnum
+               x.sms::varchar(1),                               -- sms
+               x.country::varchar(3),                           -- country
+               NULL::numeric,                                   -- utc
+               NULL::varchar(1),                                -- accept_status
+               NULL::varchar(1),                                -- active_status
+               x.remarks::varchar(2000),                        -- remarks
+               NULL::varchar(30),                               -- findnum
+               NULL::timestamp,                                 -- accept_date
+               NULL::timestamp                                  -- check_date
+            )::xxi.cus_phone
+         ),
+         '{}'::xxi._cus_phone
+      )
+      FROM XMLTABLE(
+         '//CUS_PHONE/item[count(*)>0]'
+         PASSING p_xml
+         COLUMNS
+            id_phone   numeric      PATH 'id_phone',
+            ph_type    numeric      PATH 'phone_type',
+            ph_num     varchar(300) PATH 'phone_number',
+            ph_cnt     numeric      PATH 'country_phone_code',
+            ph_city    varchar(20)  PATH 'city_code',
+            ph_ext_num varchar(10)  PATH 'add_code',
+            sms        varchar(1)   PATH 'sms',
+            country    varchar(5)   PATH 'country_code',
+            remarks    varchar(500) PATH 'note'
+      ) x
+      WHERE x.ph_num IS NOT NULL
    );
 END;
 $function$
@@ -541,34 +616,63 @@ CREATE FUNCTION x2mail_List(
    RETURNS xxi._cus_email
 AS
 $function$
-   #private
 BEGIN
    RETURN (
-      SELECT array_agg(row(y.*)::xxi.cus_email)
-        FROM (
-           SELECT
-              NULL::numeric   AS id_email,
-              NULL::numeric   AS iCusNum,
-              x.email         AS e_mail,
-              x.email_type    AS m_type,
-              '1'::varchar    AS accept_status,
-              NULL::timestamp AS accept_date,
-              NULL::varchar   AS active_status,
-              NULL::timestamp AS check_date,
-              NULL::varchar   AS unique_status,
-              NULL::timestamp AS unique_date
-             FROM XMLTABLE(
-                '//CUS_EMAIL/item'
-                PASSING p_xml
-                COLUMNS
-                   email_type numeric      PATH '@id',
-                   email      varchar(100) PATH '.'
-             ) x
-            WHERE x.email IS NOT NULL
-        ) y
+      SELECT coalesce(
+         array_agg(
+            ROW(
+               NULL::numeric,            -- id_email
+               NULL::numeric,            -- icusnum
+               x.email::varchar(64),     -- e_mail
+               x.email_type,             -- m_type
+               '1'::varchar(1),          -- accept_status
+               NULL::date,               -- accept_date
+               NULL::varchar(1),         -- active_status
+               NULL::date,               -- check_date
+               NULL::varchar(1),         -- unique_status
+               NULL::date,               -- unique_date
+               NULL::numeric             -- priority
+            )::xxi.cus_email
+         ),
+         '{}'::xxi._cus_email
+      )
+      FROM XMLTABLE(
+         '//CUS_EMAIL/item'
+         PASSING p_xml
+         COLUMNS
+            email_type numeric      PATH '@id',
+            email      varchar(100) PATH '.'
+      ) x
+      WHERE x.email IS NOT NULL
    );
 END;
 $function$
+
+
+/* 
+   Заведение нового клиента 
+   IN  p_xml          xml,
+   IN  p_operation    int4,   -- 1=create, 2=update
+   IN  p_run_Mfv      int4,
+   OUT p_cus_Id       numeric,
+   OUT p_result_Code  int4,
+   OUT p_result_Info  varchar
+
+*/
+CREATE PROCEDURE create_Cus (
+    in p_xml         XML,
+    in p_runMfv      INT4,
+   OUT p_cus_Id      numeric,
+   OUT p_result_Code int4,
+   OUT p_result_Info varchar
+)
+as
+$procedure$
+   #package
+BEGIN
+   call K_pkgCus.manage_Cus( p_xml, 1, p_runMfv, p_cus_Id,  p_result_Code, p_result_Info ); 
+END;
+$procedure$
 
 
 /* Очистка буферов альтернативного поиска */
@@ -596,9 +700,9 @@ CREATE PROCEDURE af_Find_Cus_Int(
 AS
 $procedure$
    #private
-DECLARE
-   tabParamImpl  AC.T_TabParameterImpl;
-   tabResultImpl AC.T_TabParameterImpl;
+--DECLARE
+--   tabParamImpl  AC.T_TabParameterImpl;
+--   tabResultImpl AC.T_TabParameterImpl;
 BEGIN
    p_cus_Id      := 0;
    p_result_Code := RET_FAIL;
@@ -611,10 +715,10 @@ BEGIN
 
    p_result_Info := 'Ошибка при загрузке ДУЛ клиента из XML';
    af_dcmList := x2dcm_List(p_xml);
-
+/*
    p_result_Info := 'Ошибка при вызове ФПЗ "ECD.AF_Cus_Finder"';
    AC.Get_TabValueImpl(tabResultImpl, 'ECD.AF_Cus_Finder', tabParamImpl);
-
+*/
    p_cus_Id := coalesce(tabResultImpl('o1')::numeric, 0);
    p_result_Code := RET_OK;
 

@@ -6,7 +6,7 @@ CREATE OR REPLACE PACKAGE ECD_loader_Map
    $init$
    #export off
    DECLARE
-      cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
    BEGIN
       RAISE DEBUG 'Package "ecd_loader_map" - % - initialized', cVersion;
    END;
@@ -29,7 +29,8 @@ CREATE FUNCTION get_Internal_Id(
    IN p_ent_Id      numeric,
    IN p_ext_Id      varchar
 )
-   RETURNS varchar
+   RETURNS 
+      VARCHAR
 AS
 $function$
 DECLARE
@@ -39,18 +40,18 @@ BEGIN
    CALL ecd_loader_Log.dbg(
       'ECD_loader_Map.get_Internal_Id: provider='
       || coalesce(p_provider_Id, '<NULL>')
-      || ', ent_Id=' || coalesce(p_ent_Id::varchar, '<NULL>')
-      || ', ext_Id=' || coalesce(p_ext_Id, '<NULL>')
+      || ', ent_Id=' || coalesce( p_ent_Id::varchar, '<NULL>')
+      || ', ext_Id=' || coalesce( p_ext_Id, '<NULL>')
    );
 
-   SELECT i.ci_id
+   SELECT i.ci_id::varchar
      INTO l_ret_Id
      FROM ecd_i2i i
     WHERE i.ent_id   = p_ent_Id
       AND i.cprov_id = p_provider_Id
       AND i.ce_id    = p_ext_Id;
 
-   CALL ecd_loader_Ret.put_Data(
+   CALL ecd_loader_Ret.put_Data (
       p_ent_Id::varchar,
       p_ext_Id,
       l_ret_Id

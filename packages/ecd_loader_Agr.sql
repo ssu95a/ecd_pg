@@ -159,7 +159,7 @@ $procedure$
 BEGIN
 
    IF p_agr.mda_id IS NULL THEN
-      p_agr.mda_id := ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 4::int4, p_agr.mak_external_Id )::numeric;
+      p_agr.mda_id := ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 4::numeric, p_agr.mak_external_Id )::numeric;
    END IF;
 
    IF p_agr.mda_id IS NULL THEN
@@ -191,7 +191,7 @@ DECLARE
 BEGIN
 
    IF p_agr.agr_Id IS NULL THEN
-      p_agr.agr_Id := CDTerms.New_ID_to_MAK( p_agr.mda_id );
+      p_agr.agr_Id := CDAgr.New_ID_to_MAK( p_agr.mda_id );
    ELSE
       l_tmp_Agr_Id := ECD_loader_Map.get_Cda_Id_By_Ext_Id( p_agr.agr_id::varchar, 3 );
 
@@ -426,12 +426,14 @@ BEGIN
    );
 
    IF l_result_Code <> RET_OK THEN
+
       CALL ECD_loader_Ret.put_Warn (
          'cda',
          'Ошибка при сохранении УИД: ' || coalesce(l_result_Info, '<NULL>'),
          p_agr.uuid,
          p_agr.agr_id::varchar
       );
+
    END IF;
 
 END;
@@ -519,6 +521,7 @@ BEGIN
    END IF;
 
    IF p_agr.msfo_std IS NOT NULL THEN
+
       l_stage_Id := ECD_loader_Map.get_Internal_Id(
          p_ctx.provider_id,
          10,
@@ -575,32 +578,139 @@ END;
 $procedure$
 
 
+CREATE FUNCTION parse_Parts (
+   IN p_agr ECD_loader_types.agr_t
+)
+   RETURNS SETOF ECD_loader_types.part_t
+AS
+$function$
+   #package
+BEGIN
+   IF p_agr.parts_xml IS NULL THEN
+      RETURN;
+   END IF;
+
+   RETURN QUERY
+   SELECT
+         p_agr.agr_id,                                                    -- agr_id
+         x.part_no,                                                       -- part_no
+         p_agr.dt_buy,                                                    -- dt_buy
+         x.dt_end_s::date,                                                -- dt_end
+
+         ecd_loader_xml.to_Percent(x.ext_percent_s),                      -- ext_percent
+         ecd_loader_xml.to_Percent(x.penalty_debt_s),                     -- penalty_debt
+         ecd_loader_xml.to_Percent(x.penalty_percent_s),                  -- penalty_percent
+         ecd_loader_xml.to_Percent(x.penalty_overdue_s),                  -- penalty_overdue
+
+         ecd_loader_xml.to_Money(x.amount_agr_s),                         -- amount_agr
+         ecd_loader_xml.to_Money(x.current_percent_sum_s),                -- current_percent_sum
+         ecd_loader_xml.to_Money(x.overdue_sum_s),                        -- overdue_sum
+         ecd_loader_xml.to_Money(x.overdue_percent_sum_s),                -- overdue_percent_sum
+         ecd_loader_xml.to_Money(x.fine_main_sum_s),                      -- fine_main_sum
+         ecd_loader_xml.to_Money(x.fine_percent_sum_s),                   -- fine_percent_sum
+
+         ecd_loader_xml.to_Money(x.curr_pct_ovd_sum_s),                   -- current_percent_overdue_sum
+         ecd_loader_xml.to_Money(x.ovd_pct_ovd_sum_s),                    -- overdue_percent_overdue_sum
+         ecd_loader_xml.to_Money(x.commission_sum_s),                     -- commission_sum
+
+         ecd_loader_xml.to_Numeric(x.days_of_delay_s)::int4,              -- days_of_delay
+         ecd_loader_xml.to_Numeric(x.days_of_delay_pct_s)::int4,          -- days_of_delay_percent
+         ecd_loader_xml.to_Percent(x.rate_on_ovd_debt_s),                 -- rate_on_overdue_debt
+         ecd_loader_xml.to_Numeric(x.days_of_delay_prc_ovd_s)::int4,      -- days_of_delay_prc_on_ovd
+
+         coalesce(ecd_loader_xml.to_Numeric(x.is_prol_s), 0) = 1,         -- is_prol
+         ecd_loader_xml.to_Money(x.calc_percent_sum_s)                    -- calc_percent_sum
+      
+   FROM XMLTABLE(
+      '/*/item'
+      PASSING p_agr.parts_xml
+      COLUMNS
+         part_no                 numeric     PATH '@part',
+         dt_end_s                varchar(30) PATH 'dtend',
+         ext_percent_s           varchar(50) PATH 'interest_rate',
+
+         amount_agr_s            varchar(50) PATH 'CDA_SUM/item[@id="debt"]',
+         current_percent_sum_s   varchar(50) PATH 'CDA_SUM/item[@id="current_procent"]',
+         overdue_sum_s           varchar(50) PATH 'CDA_SUM/item[@id="overdue"]',
+         overdue_percent_sum_s   varchar(50) PATH 'CDA_SUM/item[@id="overdue_procent"]',
+         fine_main_sum_s         varchar(50) PATH 'CDA_SUM/item[@id="penny_main"]',
+         fine_percent_sum_s      varchar(50) PATH 'CDA_SUM/item[@id="penny_procent"]',
+         curr_pct_ovd_sum_s      varchar(50) PATH 'CDA_SUM/item[@id="current_procent_on_overdue"]',
+         ovd_pct_ovd_sum_s       varchar(50) PATH 'CDA_SUM/item[@id="overdue_procent_on_overdue"]',
+         commission_sum_s        varchar(50) PATH 'CDA_SUM/item[@id="commission"]',
+         calc_percent_sum_s      varchar(50) PATH 'CDA_SUM/item[@id="calc_procent"]',
+
+         penalty_debt_s          varchar(50) PATH 'CDA_PENALTY/item[@id="DEBT"]',
+         penalty_percent_s       varchar(50) PATH 'CDA_PENALTY/item[@id="PERCENT"]',
+         penalty_overdue_s       varchar(50) PATH 'CDA_PENALTY/item[@id="OVERDUE"]',
+
+         days_of_delay_s         varchar(30) PATH 'days_of_delay',
+         days_of_delay_pct_s     varchar(30) PATH 'days_of_delay_percent',
+         rate_on_ovd_debt_s      varchar(50) PATH 'CDA_RATE/item[@id="interest_rate_on_overdue_debt"]',
+         days_of_delay_prc_ovd_s varchar(30) PATH 'days_of_del_prcnt_onovd',
+         is_prol_s               varchar(30) PATH 'is_prol'
+   ) x;
+END;
+$function$
+
+
 /* Создать части договора */
-CREATE PROCEDURE create_Parts(
-   IN p_ctx ECD_loader_Types.ctx_t,
-   IN p_agr ECD_loader_Types.agr_t
+CREATE PROCEDURE create_Parts (
+   IN p_ctx ecd_loader_types.ctx_t,
+   IN p_agr ecd_loader_types.agr_t
 )
 AS
 $procedure$
+   #package
+   #private
 DECLARE
-   l_result_Code int4;
-   l_result_Info varchar;
-   r             record;
-   l_part        ECD_loader_Types.part_t;
+   l_part        ecd_loader_types.part_t;
+   l_result_code int4;
+   l_result_info varchar;
+   l_cnt         numeric := 0;
 BEGIN
 
-   /*
-      Здесь позже:
-      - разбор p_agr.parts_xml
-      - сбор part_t
-      - вызов ecd_loader_Dep.new_Ces_Part(...)
-   */
-
-   FOR r IN
-      SELECT 1 AS stub_part
+   FOR l_part IN
+      SELECT *
+        FROM parse_Parts(p_agr)
    LOOP
-      NULL;
+
+      CALL ECD_loader_Dep.new_Ces_Part( l_part, l_result_Code, l_result_Info );
+
+      IF l_result_code <> RET_OK THEN
+
+         CALL ecd_loader_err.raise_Data_Error (
+            'NEW_CES_PART_FAILED',
+            'Ошибка создания части договора #' || coalesce(l_part.part_no::varchar, '<NULL>') || '. ' || coalesce(l_result_info, '<NULL>')
+         );
+
+      END IF;
+
+      CALL ecd_loader_dep.update_History (
+         l_part.agr_id,
+         l_part.part_no,
+         'OVDRATE',
+         l_part.dt_buy,
+         NULL,
+         NULL,
+         l_part.ext_percent,
+         NULL
+      );
+
+      l_cnt := l_cnt + 1;
+
    END LOOP;
+
+   IF l_cnt > 0 THEN
+
+      CALL ecd_loader_ret.put_Info(
+         'cda',
+         'Части договора загружены: ' || l_cnt::varchar,
+         NULL,
+         p_agr.agr_id::varchar
+      );
+
+   END IF;
 
 END;
 $procedure$
@@ -649,12 +759,12 @@ BEGIN
          SELECT
             xt.npart,
             xt.ccdhterm,
-            ecd_loader_xml.get_date_val(xt.dcdhdate_s)   AS dcdhdate,
-            ecd_loader_xml.to_numeric(xt.icdhdsub_s)     AS icdhdsub,
+            ecd_loader_xml.get_date_val( xt.dcdhdate_s ) AS dcdhdate,
+            ecd_loader_xml.to_numeric  ( xt.icdhdsub_s ) AS icdhdsub,
             xt.ccdhcval,
-            ecd_loader_xml.to_money(xt.mcdhmval_s)       AS mcdhmval,
-            ecd_loader_xml.to_numeric(xt.icdhival_s)     AS icdhival,
-            ecd_loader_xml.to_percent(xt.pcdhpval_s)     AS pcdhpval
+            ecd_loader_xml.to_money    ( xt.mcdhmval_s ) AS mcdhmval,
+            ecd_loader_xml.to_numeric  ( xt.icdhival_s ) AS icdhival,
+            ecd_loader_xml.to_percent  ( xt.pcdhpval_s ) AS pcdhpval
          FROM XMLTABLE(
             '//CDA_PART/item/CDA_HTERM/item'
             PASSING p_ctx.input_Xml
@@ -697,23 +807,13 @@ BEGIN
 
    CALL ecd_loader_ret.put_Info( 'cda', 'История параметров договора загружена.', NULL, p_agr.agr_id::varchar );
 
-EXCEPTION
-   WHEN NO_DATA_FOUND THEN
-      CALL ecd_loader_ret.put_Warn(
-         'cda',
-         'Договор не найден при загрузке истории параметров.',
-         NULL,
-         p_agr.agr_id::varchar
-      );
-   WHEN OTHERS THEN
-      CALL ecd_loader_err.rethrow_unhandled( 'ecd_loader_agr.load_History', SQLERRM );
 END;
 $procedure$
 
 
 /* Полный цикл обработки договора */
 CREATE PROCEDURE load_Agr (
-   IN OUT p_ctx ECD_loader_Types.ctx_t,
+   IN OUT p_ctx    ECD_loader_Types.ctx_t,
    IN     p_cus_Id numeric,
    OUT    p_agr    ECD_loader_Types.agr_t
 )
@@ -722,28 +822,28 @@ $procedure$
    #package
 BEGIN
 
-   p_agr := parse_Agr(p_ctx, p_cus_Id);
+   p_agr := ECD_loader_Agr.parse_Agr(p_ctx, p_cus_Id);
 
-   CALL prepare_Rate    (p_ctx, p_agr);
-   CALL resolve_Mda     (p_ctx, p_agr);
-   CALL resolve_Agr_Id  (p_ctx, p_agr);
-   CALL validate_Agr    (p_ctx, p_agr);
-   CALL resolve_Purchase(p_ctx, p_agr);
+   CALL ECD_loader_Agr.prepare_Rate    (p_ctx, p_agr);
+   CALL ECD_loader_Agr.resolve_Mda     (p_ctx, p_agr);
+   CALL ECD_loader_Agr.resolve_Agr_Id  (p_ctx, p_agr);
+   CALL ECD_loader_Agr.validate_Agr    (p_ctx, p_agr);
+   CALL ECD_loader_Agr.resolve_Purchase(p_ctx, p_agr);
 
-   CALL create_Agr      (p_ctx, p_agr);
+   CALL ECD_loader_Agr.create_Agr      (p_ctx, p_agr);
    
    p_ctx.agr_Id := p_agr.agr_id;
 
-   CALL load_History    (p_ctx, p_agr);   
+   CALL ECD_loader_Agr.load_History    (p_ctx, p_agr);   
 
-   CALL link_To_Pfl     (p_agr);
-   CALL save_Uuid       (p_agr);
-   CALL save_Meta       (p_agr);
-   CALL save_Purpose    (p_ctx, p_agr);
-   CALL save_Ifrs       (p_ctx, p_agr);
-   CALL save_Psk        (p_agr);
+   CALL ECD_loader_Agr.link_To_Pfl     (p_agr);
+   CALL ECD_loader_Agr.save_Uuid       (p_agr);
+   CALL ECD_loader_Agr.save_Meta       (p_agr);
+   CALL ECD_loader_Agr.save_Purpose    (p_ctx, p_agr);
+   CALL ECD_loader_Agr.save_Ifrs       (p_ctx, p_agr);
+   CALL ECD_loader_Agr.save_Psk        (p_agr);
 
-   CALL create_Parts    (p_ctx, p_agr);
+   CALL ECD_loader_Agr.create_Parts    (p_ctx, p_agr);
 
    CALL ECD_loader_Ret.put_Data (
       'cda', NULL, p_agr.agr_id::varchar

@@ -1,4 +1,4 @@
-CREATE OR REPLACE PACKAGE ecd_loader_Cus
+CREATE OR REPLACE PACKAGE ECD_loader_Cus
 
    CREATE FUNCTION __init__()
       RETURNS void
@@ -6,14 +6,15 @@ CREATE OR REPLACE PACKAGE ecd_loader_Cus
    $init$
    #export off
    DECLARE
-      cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
 
       RET_OK   CONSTANT int4 := 0;
       RET_FAIL CONSTANT int4 := -1;
    BEGIN
-      RAISE DEBUG 'Package "ecd_loader_cus" - % - initialized', cVersion;
+      RAISE DEBUG 'Package "ECD_loader_Cus" - % - initialized', cVersion;
    END;
    $init$
+
 
 /* */
 CREATE FUNCTION get_Version( )
@@ -26,28 +27,35 @@ END;
 $function$
 
 
-/* Р—Р°РІРµСЃС‚Рё РЅРѕРІРѕРіРѕ РєР»РёРµРЅС‚Р° */
-CREATE PROCEDURE create_Cus(
-   IN     p_ctx         ecd_loader_types.ctx_t,
+/* Заведение нового клиента */
+CREATE PROCEDURE create_Cus (
+   IN     p_ctx         ECD_loader_Types.ctx_t,
    IN     p_xml         xml,
    OUT    p_cus_Id      numeric,
    OUT    p_result_Code int4,
    OUT    p_result_Info varchar
 )
 AS
-$procedure$
+   $procedure$
 DECLARE
    l_run_Mfv int4 := 0;
 BEGIN
-   l_run_Mfv := coalesce( ecd_loader_Xml.get_Numeric_Val( p_ctx.params_xml, '//parameter[@name="cus_run_mfv"]/text()' ), 0 )::int4;
-   CALL ecd_loader_Dep.create_Cus( p_xml, l_run_Mfv, p_cus_Id, p_result_Code, p_result_Info );
+
+   call ECD_loader_Log.dbg( 'enter_f: create_Cus' );
+
+   l_run_Mfv := coalesce( ECD_loader_Xml.get_Numeric_Val( p_ctx.params_xml, '//parameter[@name="cus_run_mfv"]/text()' ), 0 )::int4;
+
+   call ECD_loader_Log.dbg( 'var: l_run_Mfv = ' || l_run_Mfv );
+
+   CALL ECD_loader_Dep.create_Cus( p_xml, l_run_Mfv, p_cus_Id, p_result_Code, p_result_Info );
+
 END;
 $procedure$
 
 
-/* Р’С‹Р·РѕРІ handler-Р° РєР»РёРµРЅС‚Р° */
+/* Вызов handler-а клиента */
 CREATE PROCEDURE run_Cus_Handler(
-   IN     p_ctx          ecd_loader_types.ctx_t,
+   IN     p_ctx          ECD_loader_Types.ctx_t,
    IN     p_ent_Id       varchar,
    IN     p_cus_Id       numeric,
    IN     p_is_New       int4,
@@ -96,7 +104,8 @@ BEGIN
 END;
 $procedure$
 
-/* РЎРѕР±СЂР°С‚СЊ РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РєР»РёРµРЅС‚Рµ */
+
+/* Собрать дополнительную информацию о клиенте */
 CREATE PROCEDURE collect_Client_Info(
    IN p_cus_Id numeric
 )
@@ -118,7 +127,7 @@ BEGIN
    IF dm2_find.check_Extr_2(l_fio, '1000') <> 0 THEN
       CALL ecd_loader_Ret.put_Info(
          'cus',
-         'РџРѕС…РѕР¶РёРµ Р¤РРћ РєРѕРЅС‚СЂР°РіРµРЅС‚Р° РЅР°Р№РґРµРЅРѕ РІ Р±Р°Р·Рµ СЌРєСЃС‚СЂРµРјРёСЃС‚РѕРІ',
+         'Похожие ФИО контрагента найдено в базе экстремистов',
          NULL,
          p_cus_Id::varchar
       );
@@ -127,7 +136,7 @@ BEGIN
    IF account2.Check_CatGrp(0, p_cus_Id, 18, 4) THEN
       CALL ecd_loader_Ret.put_Info(
          'cus',
-         'РљРѕРЅС‚СЂР°РіРµРЅС‚ РѕС‚РјРµС‡РµРЅ РєР°Рє Р±Р°РЅРєСЂРѕС‚ (РљРёР“-18/4)',
+         'Контрагент отмечен как банкрот (КиГ-18/4)',
          NULL,
          p_cus_Id::varchar
       );
@@ -136,14 +145,15 @@ BEGIN
 EXCEPTION
    WHEN OTHERS THEN
       CALL ecd_loader_Log.err(
-         'ecd_loader_Cus.collect_Client_Info: ' || SQLERRM
+         'ECD_loader_Cus.collect_Client_Info: ' || SQLERRM
       );
 END;
 $procedure$
 
-/* РћР±СЂР°Р±РѕС‚РєР° РїРѕСЃР»Рµ Р·Р°РІРµРґРµРЅРёСЏ РєР»РёРµРЅС‚Р° */
+
+/* Обработка после заведения клиента */
 CREATE PROCEDURE handle_After_Create(
-   IN p_ctx     ecd_loader_types.ctx_t,
+   IN p_ctx     ECD_loader_Types.ctx_t,
    IN p_xml     xml,
    IN p_ent_Id  varchar,
    IN p_cus_Id  numeric
@@ -154,14 +164,14 @@ DECLARE
    l_former_L_Name varchar(100);
 BEGIN
 
-   l_former_L_Name := ecd_loader_Xml.get_String_Val(
+   l_former_L_Name := ECD_loader_Xml.get_String_Val(
       p_xml,
       '//former_l_name/text()'
    );
 
    IF l_former_L_Name IS NOT NULL THEN
 
-      INSERT INTO cus_name_arc(
+      INSERT INTO xxi.cus_name_arc(
          iCusNum,
          cCusName,
          e_Date
@@ -171,7 +181,7 @@ BEGIN
              p_ctx.accept_date
        WHERE NOT EXISTS (
          SELECT 1
-           FROM cus_name_arc a
+           FROM xxi.cus_name_arc a
           WHERE a.iCusNum = p_cus_Id
             AND a.cCusName = l_former_L_Name
       );
@@ -179,7 +189,7 @@ BEGIN
       IF FOUND THEN
          CALL ecd_loader_Ret.put_Info(
             p_ent_Id,
-            'РџСЂРµР¶РЅСЏСЏ С„Р°РјРёР»РёСЏ "' || l_former_L_Name || '" СЃРѕС…СЂР°РЅРµРЅР° РґР»СЏ С„РёР· Р»РёС†Р°.',
+            'Прежняя фамилия "' || l_former_L_Name || '" сохранена для физ лица.',
             NULL,
             p_cus_Id::varchar
          );
@@ -188,18 +198,19 @@ BEGIN
    END IF;
 
    /*
-      Р—РґРµСЃСЊ РїРѕР·Р¶Рµ:
-      - РѕР±СЂР°Р±РѕС‚РєР° EMPLOYER_CUS
-      - СЃРѕР·РґР°РЅРёРµ/РїРѕРёСЃРє СЂР°Р±РѕС‚РѕРґР°С‚РµР»СЏ РєР°Рє СЋСЂР»РёС†Р°
-      - СЃРІСЏР·С‹РІР°РЅРёРµ С‡РµСЂРµР· cus_Action.ins_Cus_lnk
+      Здесь позже:
+      - обработка EMPLOYER_CUS
+      - создание/поиск работодателя как юрлица
+      - связывание через cus_Action.ins_Cus_lnk
    */
 
 END;
 $procedure$
 
-/* РџРѕРёСЃРє/СЃРѕР·РґР°РЅРёРµ СЋСЂР»РёС†Р° */
+
+/* Поиск/создание юрлица */
 CREATE PROCEDURE get_Or_Create_Jur_Cus(
-   IN     p_ctx          ecd_loader_types.ctx_t,
+   IN     p_ctx          ECD_loader_Types.ctx_t,
    IN OUT p_xml          xml,
    IN     p_ent_Id       varchar,
    OUT    p_cus_Id       numeric,
@@ -222,38 +233,37 @@ BEGIN
    p_result_Code := RET_FAIL;
    p_result_Info := NULL;
 
-   l_inn      := ecd_loader_Xml.get_String_Val(p_xml, '//inn/text()');
-   l_ogrn     := ecd_loader_Xml.get_String_Val(p_xml, '//GOSKOM_CODE/item[@id="OGRN"]/text()');
-   l_cus_Type := ecd_loader_Xml.get_String_Val(p_xml, '//custype/text()');
+   l_inn      := ECD_loader_Xml.get_String_Val(p_xml, '//inn/text()');
+   l_ogrn     := ECD_loader_Xml.get_String_Val(p_xml, '//GOSKOM_CODE/item[@id="OGRN"]/text()');
+   l_cus_Type := ECD_loader_Xml.get_String_Val(p_xml, '//custype/text()');
 
    IF l_inn IS NOT NULL THEN
+
       BEGIN
+
          SELECT a.iCusNum,
                 a.cCusNumNal,
                 a.cCusKSiva
            INTO l_found_Id,
                 l_found_Inn,
                 l_found_Ogrn
-           FROM cus a
+           FROM xxi."CUS" a
           WHERE a.cCusFlag = l_cus_Type
             AND a.cCusNumNal = l_inn;
 
-         IF l_found_Ogrn IS NOT NULL
-            AND l_ogrn IS NOT NULL
-            AND l_found_Ogrn <> l_ogrn
-         THEN
-            CALL ecd_loader_Err.raise_Data_Error(
-               'JUR_CUS_BAD_OGRN',
-               'РЈ РЅР°Р№РґРµРЅРЅРѕРіРѕ РєР»РёРµРЅС‚Р° СЃ ID ' || l_found_Id::varchar
-               || ' РЅРµ СЃРѕРІРїР°РґР°РµС‚ РћР“Р Рќ.'
+         IF l_found_Ogrn IS NOT NULL AND l_ogrn IS NOT NULL AND l_found_Ogrn <> l_ogrn THEN
+            
+            CALL ecd_loader_Err.raise_Data_Error (
+               'JUR_CUS_BAD_OGRN', 'У найденного клиента с ID ' || l_found_Id::varchar || ' не совпадает ОГРН.'
             );
+
          END IF;
 
          p_cus_Id := l_found_Id;
 
          CALL ecd_loader_Ret.put_Info(
             p_ent_Id,
-            'РќР°Р№РґРµРЅ РєР»РёРµРЅС‚ РїРѕ РРќРќ = ' || l_inn || ' c iCusNum = ' || p_cus_Id::varchar,
+            'Найден клиент по ИНН = ' || l_inn || ' c iCusNum = ' || p_cus_Id::varchar,
             NULL,
             p_cus_Id::varchar
          );
@@ -282,8 +292,8 @@ BEGIN
          THEN
             CALL ecd_loader_Err.raise_Data_Error(
                'JUR_CUS_BAD_INN',
-               'РЈ РЅР°Р№РґРµРЅРЅРѕРіРѕ РєР»РёРµРЅС‚Р° СЃ ID ' || l_found_Id::varchar
-               || ' РЅРµ СЃРѕРІРїР°РґР°РµС‚ РРќРќ.'
+               'У найденного клиента с ID ' || l_found_Id::varchar
+               || ' не совпадает ИНН.'
             );
          END IF;
 
@@ -291,7 +301,7 @@ BEGIN
 
          CALL ecd_loader_Ret.put_Info(
             p_ent_Id,
-            'РќР°Р№РґРµРЅ РєР»РёРµРЅС‚ РїРѕ РћР“Р Рќ = ' || l_ogrn || ' c iCusNum = ' || p_cus_Id::varchar,
+            'Найден клиент по ОГРН = ' || l_ogrn || ' c iCusNum = ' || p_cus_Id::varchar,
             NULL,
             p_cus_Id::varchar
          );
@@ -303,7 +313,7 @@ BEGIN
    END IF;
 
    IF p_cus_Id IS NULL THEN
-      CALL create_Cus(
+      CALL ECD_loader_Cus.create_Cus(
          p_ctx,
          p_xml,
          p_cus_Id,
@@ -317,7 +327,7 @@ BEGIN
 
       CALL ecd_loader_Ret.put_Info(
          p_ent_Id,
-         'Р—Р°РІРµРґРµРЅ РЅРѕРІС‹Р№ СЋСЂ РєР»РёРµРЅС‚ СЃ iCusNum = ' || p_cus_Id::varchar,
+         'Заведен новый юр клиент с iCusNum = ' || p_cus_Id::varchar,
          NULL,
          p_cus_Id::varchar
       );
@@ -333,9 +343,10 @@ EXCEPTION
 END;
 $procedure$
 
-/* РџРѕРёСЃРє/СЃРѕР·РґР°РЅРёРµ С„РёР·Р»РёС†Р° */
+
+/* Поиск/создание физлица */
 CREATE PROCEDURE get_Or_Create_Cus(
-   IN     p_ctx          ecd_loader_types.ctx_t,
+   IN     p_ctx          ECD_loader_Types.ctx_t,
    IN OUT p_xml          xml,
    IN     p_ent_Id       varchar,
    OUT    p_cus_Id       numeric,
@@ -366,31 +377,36 @@ DECLARE
    l_handler_Info varchar;
 BEGIN
 
+   call ECD_loader_Log.dbg( 'enter_f: get_Or_Create_Cus' );
+
    p_cus_Id      := NULL;
    p_result_Code := RET_FAIL;
    p_result_Info := NULL;
 
-   l_has_Item   := coalesce(ecd_loader_Xml.get_Numeric_Val(p_xml, 'count(/*/*) + count(/*/@*)'), 0);
-   l_cus_Xml_Id := ecd_loader_Xml.get_Numeric_Val(p_xml, '//@ICUSNUM');
-   l_last_Name  := ecd_loader_Xml.get_String_Val (p_xml, '//l_name/text()');
-   l_first_Name := ecd_loader_Xml.get_String_Val (p_xml, '//f_name/text()');
-   l_birth_Date := ecd_loader_Xml.get_Date_Val   (p_xml, '//birth_date/text()');
-   l_cus_Type   := ecd_loader_Xml.get_Numeric_Val(p_xml, '//custype/text()');
+   l_has_Item   := coalesce( ECD_loader_Xml.get_Numeric_Val(p_xml, 'count(/*/*) + count(/*/@*)'), 0::numeric );
+   l_cus_Xml_Id := ECD_loader_Xml.get_Numeric_Val(p_xml, '//@ICUSNUM');
+   l_last_Name  := ECD_loader_Xml.get_String_Val (p_xml, '//l_name/text()');
+   l_first_Name := ECD_loader_Xml.get_String_Val (p_xml, '//f_name/text()');
+   l_birth_Date := ECD_loader_Xml.get_Date_Val   (p_xml, '//birth_date/text()');
+   l_cus_Type   := ECD_loader_Xml.get_Numeric_Val(p_xml, '//custype/text()');
 
    IF l_has_Item = 0 THEN
       p_result_Code := RET_OK;
       p_cus_Id      := -2;
+
       RETURN;
+
    END IF;
 
    IF l_cus_Xml_Id IS NOT NULL THEN
 
-      SELECT CASE
-                WHEN EXISTS( SELECT 1 FROM cus a WHERE a.iCusNum = l_cus_Xml_Id ) THEN 1 
-                ELSE 0 
-             END
-        INTO 
-            l_cus_Exists;
+      SELECT 
+         CASE
+            WHEN EXISTS( SELECT 1 FROM cus a WHERE a.iCusNum = l_cus_Xml_Id ) THEN 1 
+               ELSE 0 
+         END
+            INTO 
+               l_cus_Exists;
 
       IF l_cus_Exists = 1 THEN
 
@@ -399,7 +415,7 @@ BEGIN
 
          CALL ecd_loader_Ret.put_Info (
               p_ent_Id,
-              'РљР»РёРµРЅС‚ СЃ РїРµСЂРµРґР°РЅРЅС‹Рј ICUSNUM СЃСѓС‰РµСЃС‚РІСѓРµС‚. iCusNum = ' || p_cus_Id::varchar,
+              'Клиент с переданным ICUSNUM существует. iCusNum = ' || p_cus_Id::varchar,
               NULL,
               p_cus_Id::varchar
          );
@@ -408,9 +424,9 @@ BEGIN
 
       ELSE
 
-         CALL ecd_loader_Err.raise_Data_Error(
+         CALL ECD_loader_Err.raise_Data_Error(
             'CUS_ID_NOT_EXISTS',
-            'РљР»РёРµРЅС‚ СЃ ID ' || l_cus_Xml_Id::varchar || ' РїРµСЂРµРґР°РЅРЅС‹Р№ РІ XML, РЅРµ СЃСѓС‰РµСЃС‚РІСѓРµС‚ РІ СЂРµРµСЃС‚СЂРµ РєР»РёРµРЅС‚РѕРІ XXI.'
+            'Клиент с ID ' || l_cus_Xml_Id::varchar || ' переданный в XML, не существует в реестре клиентов XXI.'
          );
 
       END IF;
@@ -419,7 +435,7 @@ BEGIN
 
    IF l_cus_Type IN (2, 3, 5, 6, 7) THEN
 
-      CALL get_Or_Create_Jur_Cus(
+      CALL ECD_loader_Cus.get_Or_Create_Jur_Cus(
          p_ctx,
          p_xml,
          p_ent_Id,
@@ -427,36 +443,36 @@ BEGIN
          p_result_Code,
          p_result_Info
       );
+
       RETURN;
 
    END IF;
 
-   l_doc_Type_Id := ecd_loader_Xml.get_Numeric_Val(p_xml, '//CUS_DOC/item[@main="1"]/id_doc_tp/text()');
-   l_doc_Ser     := ecd_loader_Xml.get_String_Val (p_xml, '//CUS_DOC/item[@main="1"]/doc_ser/text()');
-   l_doc_Num     := ecd_loader_Xml.get_String_Val (p_xml, '//CUS_DOC/item[@main="1"]/doc_num/text()');
-   l_doc_Ext_Id  := ecd_loader_Xml.get_String_Val (p_xml, '//CUS_DOC/item[@main="1"]/external_doc_type/text()');
+   l_doc_Type_Id := ECD_loader_Xml.get_Numeric_Val( p_xml, '//CUS_DOC/item[@main="1"]/id_doc_tp/text()');
+   l_doc_Ser     := ECD_loader_Xml.get_String_Val ( p_xml, '//CUS_DOC/item[@main="1"]/doc_ser/text()');
+   l_doc_Num     := ECD_loader_Xml.get_String_Val ( p_xml, '//CUS_DOC/item[@main="1"]/doc_num/text()');
+   l_doc_Ext_Id  := ECD_loader_Xml.get_String_Val ( p_xml, '//CUS_DOC/item[@main="1"]/external_doc_type/text()');
+
+   call ECD_loader_Log.dbg( concat( 'values: l_doc_Type_Id = ', l_doc_Type_Id , ', l_doc_Ser = ', l_doc_Ser,  ', l_doc_Num = ', l_doc_Num, ', l_doc_Ext_Id = ', l_doc_Ext_Id ) );
 
    IF l_doc_Type_Id IS NULL AND l_doc_Ext_Id IS NOT NULL THEN
-
-      l_doc_Type_Id := ecd_loader_Map.get_Internal_Id (
-         p_ctx.provider_id,
-         1,
-         l_doc_Ext_Id
-      )::numeric;
-
+      l_doc_Type_Id := ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 1::numeric, l_doc_Ext_Id )::numeric;
    END IF;
 
    IF l_doc_Type_Id IS NULL THEN
 
       CALL ecd_loader_Err.raise_Config_Error(
          'DOC_TYPE_NOT_FOUND',
-         'РќРµ РІРѕР·РјРѕР¶РЅРѕ РєРѕСЂСЂРµРєС‚РЅРѕ РѕРїСЂРµРґРµР»РёС‚СЊ С‚РёРї Р”РЈР› С„РёР·. Р»РёС†Р° РїРѕ РІРЅРµС€РЅРµРјСѓ РєРѕРґСѓ "'
-         || coalesce(l_doc_Ext_Id, '<NULL>') || '". РџСЂРѕРІРµСЂСЊС‚Рµ РЅР°СЃС‚СЂРѕР№РєРё.'
+         'Не возможно корректно определить тип ДУЛ физ. лица по внешнему коду "' || coalesce(l_doc_Ext_Id, '<NULL>') || '". Проверьте настройки.'
       );
 
    END IF;
 
    BEGIN
+
+   -- call ECD_loader_Log.dbg( 'before: SELECT c.iCusNum,c.cCusNumNal ...' );
+
+      call ECD_loader_Log.dbg( 'Поиск клиента по переданным параметрам ... ');
 
       SELECT c.iCusNum,
              c.cCusNumNal
@@ -466,7 +482,7 @@ BEGIN
        WHERE d.id_doc_tp = l_doc_Type_Id
          AND regexp_replace(d.doc_num, '\D', '', 'g') = regexp_replace(coalesce(l_doc_Num, ''), '\D', '', 'g')
          AND regexp_replace(d.doc_ser, '\D', '', 'g') = regexp_replace(coalesce(l_doc_Ser, ''), '\D', '', 'g')
-         AND (l_cus_Type IS NULL OR c.cCusFlag = l_cus_Type)
+         AND (l_cus_Type IS NULL OR c.cCusFlag = l_cus_Type::varchar )
          AND upper(c.cCusLast_Name)  = upper(l_last_Name)
          AND upper(c.cCusFirst_Name) = upper(l_first_Name)
          AND (l_birth_Date IS NULL OR c.dCusBirthDay = l_birth_Date);
@@ -477,23 +493,27 @@ BEGIN
       WHEN NO_DATA_FOUND THEN
            p_cus_Id := NULL;
       WHEN TOO_MANY_ROWS THEN
-         CALL ecd_loader_Err.raise_Data_Error(
+         CALL ecd_loader_Err.raise_Data_Error (
             'CUS_TOO_MANY_BY_DOC',
-            'РќРµ РІРѕР·РјРѕР¶РЅРѕ РѕРїСЂРµРґРµР»РёС‚СЊ РєР»РёРµРЅС‚Р°, СЃ С‚Р°РєРёРј Р”РЈР› Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°РЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ Р»РёС†'
+            'Не возможно определить клиента, с таким ДУЛ зарегистрировано несколько лиц'
          );
    END;
 
+   -- call ECD_loader_Log.dbg( 'after: SELECT c.iCusNum,c.cCusNumNal ...' );
+
    IF p_cus_Id IS NOT NULL THEN
 
-      IF coalesce( l_found_Inn, chr(255) )
+      call ECD_loader_Log.dbg( 'Клиент найден. iCusNum = ' || p_cus_Id );
+
+      IF coalesce( l_found_Inn, ' ' )
          <>
          coalesce(
-            ecd_loader_Xml.get_String_Val(p_xml, '//inn/text()'), coalesce(l_found_Inn, chr(255)) )
+            ECD_loader_Xml.get_String_Val(p_xml, '//inn/text()'), coalesce(l_found_Inn, ' ') )
       THEN
 
-         CALL ecd_loader_Err.raise_Data_Error(
+         CALL ecd_loader_Err.raise_Data_Error (
             'CUS_BAD_INN',
-            'РќРµ РІРѕР·РјРѕР¶РЅРѕ РєРѕСЂСЂРµРєС‚РЅРѕ РѕРїСЂРµРґРµР»РёС‚СЊ РєР»РёРµРЅС‚Р°, С‚.Рє. РРќРќ РѕС‚Р»РёС‡Р°РµС‚СЃСЏ РѕС‚ С‚РѕРіРѕ, РєРѕС‚РѕСЂС‹Р№ Р·Р°РІРµРґРµРЅ РІ Р‘Р”'
+            'Не возможно корректно определить клиента, т.к. ИНН отличается от того, который заведен в БД. icusnum = ' || p_cus_Id
          );
 
       END IF;
@@ -502,7 +522,7 @@ BEGIN
 
    ELSE
 
-      CALL create_Cus(
+      CALL ECD_loader_Cus.create_Cus(
          p_ctx,
          p_xml,
          p_cus_Id,
@@ -518,14 +538,14 @@ BEGIN
 
       CALL ecd_loader_Ret.put_Info (
          p_ent_Id,
-         'Р—Р°РІРµРґРµРЅ РЅРѕРІС‹Р№ РєР»РёРµРЅС‚ СЃ iCusNum = ' || p_cus_Id::varchar,
-         NULL,
+         'Заведен новый клиент с iCusNum = ' || p_cus_Id::varchar,
+         NULL::varchar,
          p_cus_Id::varchar
       );
 
    END IF;
 
-   CALL run_Cus_Handler(
+   CALL ECD_loader_Cus.run_Cus_Handler(
       p_ctx,
       p_ent_Id,
       p_cus_Id,
@@ -538,20 +558,21 @@ BEGIN
 
       p_result_Code := RET_FAIL;
       p_result_Info := l_handler_Info;
+      
       RETURN;
 
    END IF;
 
    IF p_cus_Id IS NOT NULL THEN
       
-      CALL handle_After_Create(
+      CALL ECD_loader_Cus.handle_After_Create(
          p_ctx,
          p_xml,
          p_ent_Id,
          p_cus_Id
       );
 
-      CALL collect_Client_Info(p_cus_Id);
+      CALL ECD_loader_Cus.collect_Client_Info(p_cus_Id);
       
    END IF;
 

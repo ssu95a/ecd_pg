@@ -6,13 +6,13 @@ CREATE OR REPLACE PACKAGE ECD_loader_Log
    $init$
    DECLARE
       
-      cVersion CONSTANT varchar(100) := '$id: {0.1.1} {10.04.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
 
-      cLevel_Trc CONSTANT bpchar(3) := 'trc';
-      cLevel_Dbg CONSTANT bpchar(3) := 'dbg';
-      cLevel_Inf CONSTANT bpchar(3) := 'inf';
-      cLevel_Wrn CONSTANT bpchar(3) := 'wrn';
-      cLevel_Err CONSTANT bpchar(3) := 'err';
+      cLevel_Trc CONSTANT varchar(3) := 'trc';
+      cLevel_Dbg CONSTANT varchar(3) := 'dbg';
+      cLevel_Inf CONSTANT varchar(3) := 'inf';
+      cLevel_Wrn CONSTANT varchar(3) := 'wrn';
+      cLevel_Err CONSTANT varchar(3) := 'err';
 
    BEGIN
       RAISE DEBUG 'Package "ECD_loader_Log" - % - initialized', cVersion;
@@ -39,15 +39,15 @@ CREATE PROCEDURE log(
 AS
 $procedure$
    #package
-   BEGIN
-   CALL log( cLevel_Dbg, p_text );
+BEGIN
+   CALL ECD_loader_Log.log( cLevel_Dbg, p_text );
 END;
 $procedure$
 
 
 /* */
 CREATE PROCEDURE log (
-   p_level bpchar,
+   p_level varchar,
    p_text  varchar
 )
 AS
@@ -55,13 +55,6 @@ $procedure$
    #package
    #private
 BEGIN
-   IF g_mode = cMode_Off THEN
-      RETURN;
-   END IF;
-
-   IF g_mode = cMode_Raise_Only AND p_level <> cLevel_Err THEN
-      RETURN;
-   END IF;
 
    CASE p_level
       WHEN cLevel_Trc THEN
@@ -69,11 +62,11 @@ BEGIN
       WHEN cLevel_Dbg THEN
          RAISE DEBUG   'ecd - %', coalesce(p_text, '<empty>');
       WHEN cLevel_Inf THEN
-         RAISE NOTICE  'ecd - %', coalesce(p_text, '<empty>');
+         RAISE DEBUG  'ecd - %', coalesce(p_text, '<empty>');
       WHEN cLevel_Wrn THEN
-         RAISE WARNING 'ecd - %', coalesce(p_text, '<empty>');
+         RAISE DEBUG 'ecd - %', coalesce(p_text, '<empty>');
       WHEN cLevel_Err THEN
-         RAISE WARNING 'ecd - %', coalesce(p_text, '<empty>');
+         RAISE DEBUG 'ecd - %', coalesce(p_text, '<empty>');
       ELSE
          RAISE DEBUG   'ecd - %', coalesce(p_text, '<empty>');
    END CASE;
@@ -89,7 +82,7 @@ AS
 $procedure$
    #package
 BEGIN
-   CALL log(cLevel_Trc, p_text);
+   CALL ECD_loader_Log.log(cLevel_Trc, p_text);
 END;
 $procedure$
 
@@ -102,7 +95,7 @@ AS
 $procedure$
    #package
 BEGIN
-   CALL log(cLevel_Dbg, p_text);
+   CALL ECD_loader_Log.log(cLevel_Dbg, p_text);
 END;
 $procedure$
 
@@ -115,7 +108,7 @@ AS
 $procedure$
    #package
 BEGIN
-   CALL log(cLevel_Inf, p_text);
+   CALL ECD_loader_Log.log(cLevel_Inf, p_text);
 END;
 $procedure$
 
@@ -128,7 +121,7 @@ AS
 $procedure$
    #package
 BEGIN
-   CALL log(cLevel_Wrn, p_text);
+   CALL ECD_loader_Log.log(cLevel_Wrn, p_text);
 END;
 $procedure$
 
@@ -141,7 +134,7 @@ AS
 $procedure$
    #package
 BEGIN
-   CALL log(cLevel_Err, p_text);
+   CALL ECD_loader_Log.log(cLevel_Err, p_text);
 END;
 $procedure$
 

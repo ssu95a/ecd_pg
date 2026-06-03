@@ -26,7 +26,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_types
       result_info               varchar(4000)
    )
 
-   /* РўРёРї РґР»СЏ С…СЂР°РЅРµРЅРёСЏ РґР°РЅРЅС‹С… РґРѕРіРѕРІРѕСЂР° */
+   /* Тип для хранения данных договора */
    CREATE TYPE Agr_t AS (
       agr_id              numeric,
       cus_id              numeric,
@@ -82,7 +82,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_types
       jnt_cus_xml         xml
    )
 
-   /* РўРёРї РґР»СЏ С…СЂР°РЅРµРЅРёСЏ РґР°РЅРЅС‹С… С‡Р°СЃС‚Рё РґРѕРіРѕРІРѕСЂР° */
+   /* Тип для хранения данных части договора */
    CREATE TYPE Part_t AS (
       agr_id                      numeric,
       part_no                     numeric,
@@ -121,14 +121,17 @@ CREATE OR REPLACE PACKAGE ecd_loader_types
    $init$
    #export off
    DECLARE
-      cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
    BEGIN
       RAISE DEBUG 'Package "ecd_loader_types" - % - initialized', cVersion;
    END;
    $init$
 
-   CREATE FUNCTION get_version()
-      RETURNS varchar
+
+   /* */
+   CREATE FUNCTION get_Version()
+      RETURNS 
+         VARCHAR
    AS
    $function$
    BEGIN

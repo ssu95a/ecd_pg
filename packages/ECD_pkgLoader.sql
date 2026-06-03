@@ -142,7 +142,7 @@ DECLARE
 
 BEGIN
 
-   call ECD_loader_Log.dbg('ECD_pkgLoader.load_Core: begin');
+   call ECD_loader_Ret.put_Info('cda','ECD_pkgLoader.load_Core: begin');
 
    -- 1. Клиент договора
    l_cus_xml := ecd_loader_xml.get_Xml_Val (
@@ -339,19 +339,19 @@ BEGIN
 
    -- создаем контекст загрузки, в нем все параметры
    -- необходимые для загрузки договора
-   l_ctx := create_And_Init_Ctx( p_prvid, l_input_Xml, l_params_Xml );
+   l_ctx := ECD_pkgLoader.create_And_Init_Ctx( p_prvid, l_input_Xml, l_params_Xml );
 
 
    -- гланая процедура загрузки, 
    -- решает только бизнес задачи
-   CALL load_core(l_ctx);
+   CALL ECD_pkgLoader.load_core(l_ctx);
 
    p_result_code := l_ctx.result_code;
    p_result_info := l_ctx.result_info;
 
    -- Если load_Core по какой-то причине не выставил текст результата.
-   IF p_result_Сode IS NULL THEN
-      p_result_Сode := RET_FAIL;
+   IF p_result_Code IS NULL THEN
+      p_result_Code := RET_FAIL;
    END IF;
 
    IF p_result_Info IS NULL THEN
@@ -369,6 +369,7 @@ EXCEPTION
       WHEN OTHERS THEN
          DECLARE
             ex TS.T_StackedDiagnostics;
+            l_err_text varchar;
          BEGIN
            GET STACKED DIAGNOSTICS                       
                ex.RETURNED_SQLSTATE    = RETURNED_SQLSTATE,  
@@ -377,14 +378,16 @@ EXCEPTION
                ex.PG_EXCEPTION_HINT    = PG_EXCEPTION_HINT,
                ex.PG_EXCEPTION_CONTEXT = PG_EXCEPTION_CONTEXT;   
          
-               CALL ecd_loader_Log.err ( 
-                  TS.WhenOthersError( cAction_Name, ex ), 'exception', NULL::varchar, NULL::varchar
-               );
+               l_err_text := TS.WhenOthersError('ECD_pkgLoader.load', ex);
+
+               CALL ecd_loader_Log.err (  l_err_text );
 
                p_result_code := RET_FAIL;
-               p_result_info := TS.WhenOthersError( 'ECD_pkgLoader.load', ex );
+               p_result_info := l_err_text;
 
-               CALL ECD_loader_Ret.put_Error('cda', p_result_info);
+               CALL ECD_loader_Ret.put_Error('cda', '[CDA]: ' || l_err_text);
+
+               RAISE DEBUG 'ECD_pkgLoader.load failed: %', l_err_text;
 
          END; 
 
@@ -392,7 +395,7 @@ END;
 $procedure$
 
 
-/* */
+/*
 CREATE FUNCTION load (
    p_cdata_xml       text,
    p_prvid           varchar,
@@ -416,6 +419,6 @@ BEGIN
    RETURN l_result_code;
 END;
 $function$
-
+*/
 -- end_of_Package
 ;
