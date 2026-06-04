@@ -40,7 +40,7 @@ BEGIN
       cent  varchar(20),
       ci_id varchar(20),
       ce_id varchar(100),
-      ctext varchar(2000)
+      ctext text
    )
    ON COMMIT PRESERVE ROWS;
 END;
