@@ -494,14 +494,14 @@ BEGIN
     WHERE nCdaAgrID   = p_agr.agr_id;
 
    CALL ecd_loader_Dep.update_History(
-      p_agr.agr_id,
-      1,
-      'PURPOSE',
-      p_agr.dt_buy,
-      NULL,
-      NULL,
-      NULL,
-      p_agr.purpose_id
+      p_agr_Id => p_agr.agr_id,
+      p_part   => 1::numeric,
+      p_term   => 'PURPOSE',
+      p_dt     => p_agr.dt_buy,
+      p_n_Val  => NULL::numeric,
+      p_c_Val  => NULL::varchar,
+      p_p_Val  => NULL::numeric,
+      p_i_Val  => p_agr.purpose_id
    );
 
 END;
@@ -562,15 +562,15 @@ BEGIN
 
    IF p_agr.msfo_seg IS NOT NULL THEN
 
-      CALL ecd_loader_Dep.update_History (
-         p_agr.agr_id,
-         1,
-         'IFRS_SG',
-         p_agr.dt_buy,
-         NULL,
-         NULL,
-         NULL,
-         ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 11, p_agr.msfo_seg )::numeric
+      CALL ecd_loader_Dep.update_History(
+         p_agr_Id => p_agr.agr_id,
+         p_part   => 1::numeric,
+         p_term   => 'IFRS_SG',
+         p_dt     => p_agr.dt_buy,
+         p_n_Val  => NULL::numeric,
+         p_c_Val  => NULL::varchar,
+         p_p_Val  => NULL::numeric,
+         p_i_Val  => ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 11, p_agr.msfo_seg )::numeric
       );
 
    END IF;
@@ -702,15 +702,15 @@ BEGIN
 
       END IF;
 
-      CALL ecd_loader_dep.update_History (
-         l_part.agr_id,
-         l_part.part_no,
-         'OVDRATE',
-         l_part.dt_buy,
-         NULL,
-         NULL,
-         l_part.ext_percent,
-         NULL
+      CALL ecd_loader_Dep.update_History(
+         p_agr_Id => l_part.agr_id,
+         p_part   => l_part.part_no,
+         p_term   => 'OVDRATE',
+         p_dt     => l_part.dt_buy,
+         p_n_Val  => NULL::numeric,
+         p_c_Val  => NULL::varchar,
+         p_p_Val  => l_part.ext_percent,
+         p_i_Val  => NULL::numeric
       );
 
       l_cnt := l_cnt + 1;

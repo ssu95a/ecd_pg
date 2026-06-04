@@ -168,7 +168,7 @@ BEGIN
    l_new_Part.pMOI2  := p_part.overdue_percent_overdue_sum;
    l_new_Part.pMC    := p_part.commission_sum;
    l_new_Part.pNNDO  := p_part.days_of_delay;
-   l_new_Part.pISPROL:= CASE WHEN p_part.is_prol THEN 1 ELSE 0 END;
+   l_new_Part.pISPROL:= CASE WHEN p_part.is_prol THEN '1' ELSE '0' END;
    l_new_Part.pNICLC := p_part.calc_percent_sum;
    l_new_Part.pPFI2  := p_part.penalty_overdue;
 
@@ -212,27 +212,34 @@ BEGIN
    END IF;
 
    IF p_term = 'DEND' THEN
+   
       CALL CDTerms.Update_History(
-         AgrID   => p_agr_Id,
-         Part    => p_part,
-         Term    => p_term,
-         EffDate => p_dt,
-         iVal0   => p_i_Val,
-         CVal    => CDCes.Normalize_Date(p_c_Val)
+         agrid       => p_agr_Id,
+         part        => p_part,
+         term        => p_term,
+         effdate     => p_dt,
+         mval        => p_n_Val,
+         pval        => p_p_Val,
+         ival0       => p_i_Val::bigint,
+         cval        => CDCes.Normalize_Date(p_c_Val),
+         flaghistory => NULL::bigint
       );
-   ELSE
-      CALL CDTerms.Update_History(
-         AgrID   => p_agr_Id,
-         Part    => p_part,
-         Term    => p_term,
-         EffDate => p_dt,
-         mVal    => p_n_Val,
-         CVal    => p_c_Val,
-         PVal    => p_p_Val,
-         iVal0   => p_i_Val
-      );
-   END IF;
 
+   ELSE
+
+      CALL CDTerms.Update_History(
+         agrid       => p_agr_Id,
+         part        => p_part,
+         term        => p_term,
+         effdate     => p_dt,
+         mval        => p_n_Val,
+         pval        => p_p_Val,
+         ival0       => p_i_Val::bigint,
+         cval        => p_c_Val,
+         flaghistory => NULL::bigint
+      );
+
+   END IF;
 END;
 $procedure$
 
