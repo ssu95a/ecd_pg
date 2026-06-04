@@ -837,7 +837,6 @@ CREATE PROCEDURE load_Agr (
 AS
 $procedure$
    #package
-   #private
 DECLARE
    cProc CONSTANT varchar := cPkg_Name || '.load_Agr';
 BEGIN
@@ -847,21 +846,21 @@ BEGIN
    CALL ECD_loader_Log.log( cProc, 'before parse_Agr', 'p_cus_Id=' || coalesce( p_cus_Id::varchar, '<NULL>' ) );
    p_agr := ECD_loader_Agr.parse_Agr( p_ctx, p_cus_Id );
    CALL ECD_loader_Log.dbg( cProc,'after parse_Agr',
-      'ext_num='     || coalesce(l_agr.ext_num, '<NULL>')
-      || ', agr_id=' || coalesce(l_agr.agr_id::varchar, '<NULL>')
-      || ', mda_id=' || coalesce(l_agr.mda_id::varchar, '<NULL>')
-      || ', dt_buy=' || coalesce(l_agr.dt_buy::varchar, '<NULL>')
+      'ext_num='     || coalesce(p_agr.ext_num, '<NULL>')
+      || ', agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+      || ', mda_id=' || coalesce(p_agr.mda_id::varchar, '<NULL>')
+      || ', dt_buy=' || coalesce(p_agr.dt_buy::varchar, '<NULL>')
    );
 
    -- подготовка процентной ставки
-   CALL ECD_loader_Log.dbg( cProc, 'before prepare_Rate', 'ext_percent=' || coalesce(l_agr.ext_percent::varchar, '<NULL>') );
+   CALL ECD_loader_Log.dbg( cProc, 'before prepare_Rate', 'ext_percent=' || coalesce(p_agr.ext_percent::varchar, '<NULL>') );
    CALL ECD_loader_Agr.prepare_Rate    (p_ctx, p_agr);
-   CALL ECD_loader_Log.dbg( cProc, 'after prepare_Rate',  'ext_percent=' || coalesce(l_agr.ext_percent::varchar, '<NULL>') );
+   CALL ECD_loader_Log.dbg( cProc, 'after prepare_Rate',  'ext_percent=' || coalesce(p_agr.ext_percent::varchar, '<NULL>') );
 
    -- определение макета
    CALL ECD_loader_Log.dbg( cProc, 'before resolve_Mda', '' );
    CALL ECD_loader_Agr.resolve_Mda     (p_ctx, p_agr);
-   CALL ECD_loader_Log.dbg( cProc, 'after resolve_Mda',  'mda_id =' || coalesce(l_agr.mda_id::varchar, '<NULL>') );
+   CALL ECD_loader_Log.dbg( cProc, 'after resolve_Mda',  'mda_id =' || coalesce(p_agr.mda_id::varchar, '<NULL>') );
 
    CALL ECD_loader_Agr.resolve_Agr_Id  (p_ctx, p_agr);
    CALL ECD_loader_Agr.validate_Agr    (p_ctx, p_agr);

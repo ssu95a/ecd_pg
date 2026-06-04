@@ -34,134 +34,109 @@ $function$
 
 /* */
 CREATE PROCEDURE log(
-   p_text varchar
+   in p_level varchar,
+   in p_text  varchar
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log( cLevel_Dbg, p_text );
-END;
-$procedure$
-
-
-/* */
-CREATE PROCEDURE log (
-   p_proc    varchar,
-   p_phase   varchar,
-   p_details varchar DEFAULT NULL
-)
-AS
-$procedure$
-   #package
-BEGIN
-   CALL ECD_loader_Log.log (
-      cLevel_Dbg,
-      coalesce( p_proc, '<proc?>') || ': ' || coalesce( p_phase, '<phase?>') || coalesce(' | ' || NULLIF( p_details, '' ), '')
-   );
+   CALL ECD_loader_Log.log( p_level, p_text, null::varchar, null::varchar );
 END;
 $procedure$
 
 
 /* вариант с уровнем */
 CREATE PROCEDURE log (
-   p_level   varchar,
-   p_proc    varchar,
-   p_phase   varchar,
-   p_details varchar DEFAULT NULL
+   in p_level varchar,
+   in p_proc  varchar,
+   in p_phase varchar,
+   in p_text  varchar DEFAULT NULL
 )
 AS
 $procedure$
    #package
 BEGIN
-   RAISE DEBUG 'ecd - [%] %', coalesce( p_level, 'dbg'), coalesce(p_text, '<empty>');
-   
-   CALL ECD_loader_Log.log (
-      p_level,
-      coalesce(p_proc,  '<proc?>')
-      || ': '
-      || coalesce(p_phase, '<phase?>')
-      || coalesce(' | ' || NULLIF(p_details, ''), '')
-   );
+   RAISE DEBUG 'ecd - [%] %: % %', coalesce( p_level, 'dbg'), coalesce( p_proc,'<proc?>'), coalesce(p_phase, '<phase?>'), coalesce(' | ' || NULLIF(p_text, ''), '');
 END;
 $procedure$
 
 /* */
 CREATE PROCEDURE trc(
-   p_text varchar
+   in p_text varchar
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Trc, p_text);
+   CALL ECD_loader_Log.log(cLevel_Trc, p_text, null::varchar);
 END;
 $procedure$
 
 
 /* */
 CREATE PROCEDURE dbg(
-   p_text varchar
+   in p_text varchar
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Dbg, p_text);
+   CALL ECD_loader_Log.log(cLevel_Dbg, p_text, null::varchar);
 END;
 $procedure$
 
 
 /* */
 CREATE PROCEDURE inf (
-   p_text varchar
+   in p_text varchar
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Inf, p_text);
+   CALL ECD_loader_Log.log(cLevel_Inf, p_text, null::varchar);
 END;
 $procedure$
 
 
 /* */
 CREATE PROCEDURE wrn(
-   p_text varchar
+   in p_text varchar
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Wrn, p_text);
+   CALL ECD_loader_Log.log(cLevel_Wrn, p_text, null::varchar);
 END;
 $procedure$
 
 
 /* */
 CREATE PROCEDURE err(
-   p_text varchar
+   in p_text varchar
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Err, p_text);
+   CALL ECD_loader_Log.log(cLevel_Err, p_text, null::varchar);
 END;
 $procedure$
 
 
 /* */
 CREATE PROCEDURE dbg(
-   p_proc    varchar,
-   p_phase   varchar,
-   p_details varchar DEFAULT NULL
+   in p_proc    varchar,
+   in p_phase   varchar,
+   in p_text varchar DEFAULT NULL
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Dbg, p_proc, p_phase, p_details);
+   CALL ECD_loader_Log.log(cLevel_Dbg, p_proc, p_phase, p_text);
 END;
 $procedure$
 
@@ -170,13 +145,13 @@ $procedure$
 CREATE PROCEDURE inf(
    p_proc    varchar,
    p_phase   varchar,
-   p_details varchar DEFAULT NULL
+   p_text varchar DEFAULT NULL
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Inf, p_proc, p_phase, p_details);
+   CALL ECD_loader_Log.log(cLevel_Inf, p_proc, p_phase, p_text);
 END;
 $procedure$
 
@@ -185,13 +160,13 @@ $procedure$
 CREATE PROCEDURE wrn(
    p_proc    varchar,
    p_phase   varchar,
-   p_details varchar DEFAULT NULL
+   p_text varchar DEFAULT NULL
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Wrn, p_proc, p_phase, p_details);
+   CALL ECD_loader_Log.log(cLevel_Wrn, p_proc, p_phase, p_text);
 END;
 $procedure$
 
@@ -200,13 +175,13 @@ $procedure$
 CREATE PROCEDURE err(
    p_proc    varchar,
    p_phase   varchar,
-   p_details varchar DEFAULT NULL
+   p_text varchar DEFAULT NULL
 )
 AS
 $procedure$
    #package
 BEGIN
-   CALL ECD_loader_Log.log(cLevel_Err, p_proc, p_phase, p_details);
+   CALL ECD_loader_Log.log(cLevel_Err, p_proc, p_phase, p_text);
 END;
 $procedure$
 
