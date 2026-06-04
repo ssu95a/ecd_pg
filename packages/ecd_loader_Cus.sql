@@ -282,19 +282,17 @@ BEGIN
            INTO l_found_Id,
                 l_found_Inn,
                 l_found_Ogrn
-           FROM cus a
+           FROM xxi."CUS" a
           WHERE a.cCusFlag = l_cus_Type
             AND a.cCusKSiva = l_ogrn;
 
          IF l_found_Inn IS NOT NULL
-            AND l_inn IS NOT NULL
+            AND l_inn   IS NOT NULL
             AND l_found_Inn <> l_inn
          THEN
             CALL ecd_loader_Err.raise_Data_Error(
                'JUR_CUS_BAD_INN',
-               'У найденного клиента с ID ' || l_found_Id::varchar
-               || ' не совпадает ИНН.'
-            );
+               'У найденного клиента с ID ' || l_found_Id::varchar || ' не совпадает ИНН.' );
          END IF;
 
          p_cus_Id := l_found_Id;
@@ -402,7 +400,7 @@ BEGIN
 
       SELECT 
          CASE
-            WHEN EXISTS( SELECT 1 FROM cus a WHERE a.iCusNum = l_cus_Xml_Id ) THEN 1 
+            WHEN EXISTS( SELECT 1 FROM xxi."CUS" a WHERE a.iCusNum = l_cus_Xml_Id ) THEN 1 
                ELSE 0 
          END
             INTO 
@@ -476,9 +474,10 @@ BEGIN
 
       SELECT c.iCusNum,
              c.cCusNumNal
-        INTO l_found_Id, l_found_Inn
-        FROM cus_docum d
-             JOIN cus c ON c.iCusNum = d.iCusNum
+             INTO l_found_Id, 
+                  l_found_Inn
+        FROM xxi.cus_docum d
+             JOIN xxi."CUS" c ON c.iCusNum = d.iCusNum
        WHERE d.id_doc_tp = l_doc_Type_Id
          AND regexp_replace(d.doc_num, '\D', '', 'g') = regexp_replace(coalesce(l_doc_Num, ''), '\D', '', 'g')
          AND regexp_replace(d.doc_ser, '\D', '', 'g') = regexp_replace(coalesce(l_doc_Ser, ''), '\D', '', 'g')

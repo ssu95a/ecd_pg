@@ -188,6 +188,7 @@ BEGIN
 END;
 $procedure$
 
+
 /* График выдачи основного долга */
 CREATE PROCEDURE load_Schedule_Cred(
    IN p_agr_Id numeric,
@@ -205,6 +206,7 @@ BEGIN
       p_xml,
       '//CDA_PART/item/CDA_SCHEDULE/schedule_cred/item'
    ) THEN
+      CALL ECD_loader_Log.dbg( 'График выдачи основного долга - отсутсвтует');
       RETURN;
    END IF;
 
@@ -224,7 +226,7 @@ BEGIN
         ) x
    LOOP
 
-      IF coalesce(r.nCount, 0) = 0 THEN
+      IF coalesce( r.nCount, 0 ) = 0 THEN
          CONTINUE;
       END IF;
 
@@ -266,6 +268,7 @@ BEGIN
 
 END;
 $procedure$
+
 
 /* Графики процентов */
 CREATE PROCEDURE load_Schedule_Percent(

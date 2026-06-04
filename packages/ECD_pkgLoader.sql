@@ -4,23 +4,29 @@ CREATE OR REPLACE PACKAGE ECD_pkgLoader
       RETURNS void
    AS
    $init$
-   #export off
+      #export off
    DECLARE
-      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {30.05.2026} Lora$';
 
-      RET_OK   CONSTANT int4 := 0;
-      RET_FAIL CONSTANT int4 := -1;
+      cPkg_Name CONSTANT varchar(30 ) := 'ECD_pkgLoader';
+      cVersion  CONSTANT varchar(100) := '$id: {0.2.0} {30.05.2026} Lora$';
+
+      RET_OK    CONSTANT int4 := 0;
+      RET_FAIL  CONSTANT int4 := -1;
+
    BEGIN
-      RAISE DEBUG 'Package "ECD_pkgLoader" - % - initialized', cVersion;
+      RAISE DEBUG 'Package "%" - % - initialized', cPkg_Name, cVersion;
    END;
    $init$
 
+
+/* */
 CREATE FUNCTION get_Version()
-   RETURNS varchar
+   RETURNS 
+      VARCHAR
 AS
 $function$
 BEGIN
-   RETURN cVersion;
+   return cVersion;
 END;
 $function$
 
@@ -43,6 +49,7 @@ BEGIN
 
    l_ctx.load_id     := gen_random_uuid();
    l_ctx.provider_id := p_provider_id;
+
    l_ctx.input_xml   := p_input_xml;
    l_ctx.params_xml  := p_params_xml;
 
@@ -133,6 +140,9 @@ $procedure$
    #package
    #private
 DECLARE
+
+   cProc CONSTANT varchar := cPkg_Name || '.load_Core';
+
    l_cus_xml      xml;
    l_cus_id       numeric;
    l_agr          ECD_loader_Types.Agr_t;
@@ -142,7 +152,7 @@ DECLARE
 
 BEGIN
 
-   call ECD_loader_Ret.put_Info('cda','ECD_pkgLoader.load_Core: begin');
+   call ECD_loader_Log.inf( cProc,'ECD_pkgLoader.load_Core: begin', 'Загрузка договора');
 
    -- 1. Клиент договора
    l_cus_xml := ecd_loader_xml.get_Xml_Val (
@@ -151,12 +161,7 @@ BEGIN
    );
 
    CALL ECD_loader_Cus.get_Or_Create_Cus (
-      p_ctx,
-      l_cus_xml,
-      'cda.cus',
-      l_cus_id,
-      l_result_code,
-      l_result_info
+      p_ctx, l_cus_xml, 'cda.cus', l_cus_id, l_result_code, l_result_info
    );
 
    IF l_result_code <> RET_OK OR l_cus_id IS NULL OR l_cus_id <= 0 THEN
@@ -203,7 +208,7 @@ BEGIN
    IF l_agr.agr_id IS NULL THEN
 
       p_ctx.result_code := RET_FAIL;
-      p_ctx.result_info := 'Договор не создан: не сформирован agr_id.';
+      p_ctx.result_Info := coalesce( p_ctx.result_Info, 'Договор не создан: не сформирован agr_id.' );
 
       CALL ecd_loader_ret.put_Error(
          'cda',
@@ -216,11 +221,7 @@ BEGIN
 
    p_ctx.agr_id := l_agr.agr_id;
 
-   CALL ecd_loader_ret.put_Data(
-      'cda',
-      NULL,
-      l_agr.agr_id::varchar
-   );
+   CALL ecd_loader_ret.put_Data( 'cda', NULL, l_agr.agr_id::varchar );
 
    /*
       3. Графики

@@ -6,7 +6,7 @@ CREATE OR REPLACE PACKAGE ecd_loader_Xml
       #export off
    DECLARE
       
-      cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
+      cVersion CONSTANT varchar(100) := '$id: {0.2.1} {04.06.2026} Lora$';
 
       FORMAT_MONEY   CONSTANT varchar(50) := 'FM9999999999999999.99';
       FORMAT_PERCENT CONSTANT varchar(50) := 'FM9999999999999999.99999999999999999';
@@ -87,7 +87,7 @@ END;
 $function$
 
 
-/*Преобразует строку в значение % */
+/* Преобразует строку в значение % */
 CREATE FUNCTION to_percent(
    p_text varchar
 )
@@ -162,7 +162,7 @@ END;
 $function$
 
 
-/* */
+/* Получение части XML значения из документа XML*/
 CREATE FUNCTION get_xml_Val (
    in p_xml   xml,
    in p_xpath varchar

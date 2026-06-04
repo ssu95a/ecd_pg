@@ -47,32 +47,44 @@ $procedure$
 
 /* */
 CREATE PROCEDURE log (
-   p_level varchar,
-   p_text  varchar
+   p_proc    varchar,
+   p_phase   varchar,
+   p_details varchar DEFAULT NULL
 )
 AS
 $procedure$
    #package
-   #private
 BEGIN
-
-   CASE p_level
-      WHEN cLevel_Trc THEN
-         RAISE DEBUG   'ecd - %', coalesce(p_text, '<empty>');
-      WHEN cLevel_Dbg THEN
-         RAISE DEBUG   'ecd - %', coalesce(p_text, '<empty>');
-      WHEN cLevel_Inf THEN
-         RAISE DEBUG  'ecd - %', coalesce(p_text, '<empty>');
-      WHEN cLevel_Wrn THEN
-         RAISE DEBUG 'ecd - %', coalesce(p_text, '<empty>');
-      WHEN cLevel_Err THEN
-         RAISE DEBUG 'ecd - %', coalesce(p_text, '<empty>');
-      ELSE
-         RAISE DEBUG   'ecd - %', coalesce(p_text, '<empty>');
-   END CASE;
+   CALL ECD_loader_Log.log (
+      cLevel_Dbg,
+      coalesce( p_proc, '<proc?>') || ': ' || coalesce( p_phase, '<phase?>') || coalesce(' | ' || NULLIF( p_details, '' ), '')
+   );
 END;
 $procedure$
 
+
+/* вариант с уровнем */
+CREATE PROCEDURE log (
+   p_level   varchar,
+   p_proc    varchar,
+   p_phase   varchar,
+   p_details varchar DEFAULT NULL
+)
+AS
+$procedure$
+   #package
+BEGIN
+   RAISE DEBUG 'ecd - [%] %', coalesce( p_level, 'dbg'), coalesce(p_text, '<empty>');
+   
+   CALL ECD_loader_Log.log (
+      p_level,
+      coalesce(p_proc,  '<proc?>')
+      || ': '
+      || coalesce(p_phase, '<phase?>')
+      || coalesce(' | ' || NULLIF(p_details, ''), '')
+   );
+END;
+$procedure$
 
 /* */
 CREATE PROCEDURE trc(
@@ -135,6 +147,66 @@ $procedure$
    #package
 BEGIN
    CALL ECD_loader_Log.log(cLevel_Err, p_text);
+END;
+$procedure$
+
+
+/* */
+CREATE PROCEDURE dbg(
+   p_proc    varchar,
+   p_phase   varchar,
+   p_details varchar DEFAULT NULL
+)
+AS
+$procedure$
+   #package
+BEGIN
+   CALL ECD_loader_Log.log(cLevel_Dbg, p_proc, p_phase, p_details);
+END;
+$procedure$
+
+
+/* */
+CREATE PROCEDURE inf(
+   p_proc    varchar,
+   p_phase   varchar,
+   p_details varchar DEFAULT NULL
+)
+AS
+$procedure$
+   #package
+BEGIN
+   CALL ECD_loader_Log.log(cLevel_Inf, p_proc, p_phase, p_details);
+END;
+$procedure$
+
+
+/* */
+CREATE PROCEDURE wrn(
+   p_proc    varchar,
+   p_phase   varchar,
+   p_details varchar DEFAULT NULL
+)
+AS
+$procedure$
+   #package
+BEGIN
+   CALL ECD_loader_Log.log(cLevel_Wrn, p_proc, p_phase, p_details);
+END;
+$procedure$
+
+
+/* */
+CREATE PROCEDURE err(
+   p_proc    varchar,
+   p_phase   varchar,
+   p_details varchar DEFAULT NULL
+)
+AS
+$procedure$
+   #package
+BEGIN
+   CALL ECD_loader_Log.log(cLevel_Err, p_proc, p_phase, p_details);
 END;
 $procedure$
 

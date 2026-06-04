@@ -41,7 +41,7 @@ BEGIN
 
    IF EXISTS (
       SELECT 1
-        FROM acc a
+        FROM xxi."ACC" a
        WHERE a.cAccAcc = p_acc
    ) THEN
       RETURN TRUE;
@@ -63,6 +63,7 @@ CREATE PROCEDURE set_Current_Acc(
 )
 AS
 $procedure$
+   #package
 DECLARE
    l_acc        varchar := p_acc;
    l_error_Info varchar;
@@ -130,7 +131,7 @@ BEGIN
 
    INSERT INTO cd_acc( nCdAccAgrId, iCdAccType, cCdAccAcc, cCdAccCur, iCdAccSubType )
    SELECT
-      p_agr_Id, p_type, p_acc, CDTerms.Get_ACCcur(p_acc), coalesce(p_sub_Type, 0)
+      p_agr_Id, p_type, p_acc, CDTerms.get_ACCcur( p_acc ), coalesce( p_sub_Type, 0 )
     WHERE NOT EXISTS (
       SELECT 1
         FROM cd_acc a
@@ -152,9 +153,10 @@ CREATE PROCEDURE insert_Cda_Acc(
 )
 AS
 $procedure$
+   #package
 BEGIN
 
-   INSERT INTO cda_acc(
+   INSERT INTO cda_acc (
       nAddAgrId,
       nAddType,
       cAddAcc,
@@ -186,6 +188,7 @@ BEGIN
 
 END;
 $procedure$
+
 
 /* Обработка счетов обеспечения */
 CREATE PROCEDURE handle_Czo_Acc(
@@ -278,6 +281,7 @@ BEGIN
 END;
 $procedure$
 
+
 /* Вызов handler-а счетов */
 CREATE PROCEDURE run_Acc_Handler (
    IN   p_ctx         ecd_loader_Types.Ctx_t,
@@ -304,6 +308,7 @@ BEGIN
 
 END;
 $procedure$
+
 
 /* Загрузка списка счетов */
 CREATE PROCEDURE load_Acc_List(
@@ -369,121 +374,121 @@ BEGIN
             );
 
          WHEN 5 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaPrsrAcc = r.cAcc,
                    cCdaPrsrCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID   = p_agr_Id;
 
          WHEN 6 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaPrsrPcAcc = r.cAcc,
                    cCdaPrsrPcCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID     = p_agr_Id;
 
          WHEN 7 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaRiskAcc = r.cAcc,
                    cCdaRiskCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID   = p_agr_Id;
 
          WHEN 10 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaAccumAcc = r.cAcc,
                    cCdaAccumCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID    = p_agr_Id;
 
          WHEN 11 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaFuturAcc = r.cAcc,
                    cCdaFuturCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID    = p_agr_Id;
 
          WHEN 13 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaPrsrPc2Acc = r.cAcc,
                    cCdaPrsrPc2Cur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID      = p_agr_Id;
 
          WHEN 20 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaRiskOAcc = r.cAcc,
                    cCdaRiskOCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID    = p_agr_Id;
 
          WHEN 22 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaNoLimAcc = r.cAcc,
                    cCdaNoLimCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID    = p_agr_Id;
 
          WHEN 23 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaAccum2Acc = r.cAcc,
                    cCdaAccum2Cur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID     = p_agr_Id;
 
          WHEN 25 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaAccumFAcc = r.cAcc,
                    cCdaAccumFCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID     = p_agr_Id;
 
          WHEN 26 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaAccumFpAcc = r.cAcc,
                    cCdaAccumFpCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID      = p_agr_Id;
 
          WHEN 27 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaAccumFNbAcc = r.cAcc,
                    cCdaAccumFNbCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID       = p_agr_Id;
 
          WHEN 28 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaAccumFpNbAcc = r.cAcc,
                    cCdaAccumFpNbCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID        = p_agr_Id;
 
          WHEN 29 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaRisk137Acc = r.cAcc,
                    cCdaRisk137Cur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID      = p_agr_Id;
 
          WHEN 100 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET iCdaCurrentType = 1,
                    cCdaCurrentAcc  = r.cAcc
              WHERE nCdaAgrID       = p_agr_Id;
 
          WHEN 101 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaAccumOAcc = r.cAcc,
                    cCdaAccumOCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID     = p_agr_Id;
 
          WHEN 106 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaPrpcOAcc = r.cAcc,
                    cCdaPrpcOCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID    = p_agr_Id;
 
          WHEN 110 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaFuturOAcc = r.cAcc,
                    cCdaFuturOCur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID     = p_agr_Id;
 
          WHEN 113 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaPrpcO2Acc = r.cAcc,
                    cCdaPrpcO2Cur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID     = p_agr_Id;
 
          WHEN 230 THEN
-            UPDATE cda
+            UPDATE xxi.cda
                SET cCdaAccumO2Acc = r.cAcc,
                    cCdaAccumO2Cur = CDTerms.Get_ACCcur(r.cAcc)
              WHERE nCdaAgrID      = p_agr_Id;
@@ -521,7 +526,7 @@ BEGIN
             );
 
          WHEN 2001 THEN
-            INSERT INTO cda_acc_out(
+            INSERT INTO xxi.cda_acc_out(
                nAddAgrId,
                iAddTypeOut,
                nAddType,

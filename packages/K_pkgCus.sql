@@ -6,7 +6,7 @@ $init$
    #export off
    #import ac, account2
 DECLARE
-   cVersion CONSTANT varchar(100) := '$id: {0.2.0} {02.06.2026} Lora$';
+   cVersion CONSTANT varchar(100) := '$id: {0.2.1} {04.06.2026} Sulimoff$';
 
    RET_OK   CONSTANT int4 := 0;
    RET_FAIL CONSTANT int4 := -1;
@@ -151,12 +151,10 @@ BEGIN
       RETURN NULL;
    END IF;
 
-   l_len := length(p_any_Id);
-
-   IF translate(p_any_Id, '_0123456789', '_') IS NULL THEN
+   IF translate( p_any_Id, '_0123456789', '_') IS NULL THEN
 
       SELECT a.calfa_2
-        INTO l_ret_A2
+             INTO l_ret_A2
         FROM xxi.ok_sm a
        WHERE a.cdigital = p_any_Id;
 
@@ -168,10 +166,12 @@ BEGIN
 
    END IF;
 
+   l_len := length(p_any_Id);
+
    IF l_len = 2 THEN
 
       SELECT a.calfa_2
-        INTO l_ret_A2
+             INTO l_ret_A2
         FROM xxi.ok_sm a
        WHERE a.calfa_2 = upper(p_any_Id);
 
@@ -191,10 +191,10 @@ BEGIN
    END IF;
 
    SELECT a.calfa_2
-     INTO l_ret_A2
+          INTO l_ret_A2
      FROM xxi.ok_sm a
     WHERE upper(a.cshortname) = upper(p_any_Id)
-       OR upper(a.clongname)  = upper(p_any_Id);
+       OR upper(a.clongname ) = upper(p_any_Id);
 
    IF FOUND THEN 
       RETURN l_ret_A2; 
@@ -210,10 +210,12 @@ $function$
 CREATE FUNCTION x2cus_t(
    IN p_xml xml
 )
-   RETURNS account2.cus_type
+   RETURNS 
+      account2.cus_type
 AS
 $function$
    #private
+   #package
 DECLARE
    l_ret account2.cus_type;
    r     record;
@@ -332,41 +334,43 @@ $function$
 CREATE FUNCTION x2dcm_List(
    IN p_xml xml
 )
-RETURNS xxi._cus_docum
-LANGUAGE plpgsql
+RETURNS 
+   xxi._cus_docum
 AS
 $function$
+   #private
+   #package
 BEGIN
-   RETURN (
-      SELECT coalesce(
-         array_agg(
-            ROW(
-               x.id_doc,                                           -- id_doc
-               NULL::numeric,                                      -- icusnum
-               CASE x.is_main WHEN '1' THEN 'Y' ELSE 'N' END,      -- pref
-               x.id_doc_tp,                                        -- id_doc_tp
-               NULL::numeric,                                      -- doc_npp
-               x.doc_num::varchar(60),                             -- doc_num
-               x.doc_ser::varchar(10),                             -- doc_ser
-               to_date(x.doc_date_s,   'YYYY-MM-DD'),              -- doc_date
-               x.doc_agency::varchar(210),                         -- doc_agency
-               to_date(x.doc_e_date_s, 'YYYY-MM-DD'),              -- doc_period
-               x.doc_subdiv::varchar(15),                          -- doc_subdiv
-               NULL::numeric,                                      -- broad_id
-               NULL::numeric,                                      -- photo_id
-               NULL::numeric,                                      -- sign_id
-               NULL::varchar(3),                                   -- doc_cnt
-               NULL::date,                                         -- doc_active
-               NULL::date,                                         -- doc_active_end
-               0::numeric,                                         -- id_mode
-               NULL::varchar(100),                                 -- doc_last_name
-               NULL::varchar(60),                                  -- doc_first_name
-               NULL::varchar(60),                                  -- doc_middle_name
-               NULL::date,                                         -- doc_present
-               NULL::varchar(100)                                  -- docsernum
-            )::xxi.cus_docum
-         ),
-         '{}'::xxi._cus_docum
+RETURN (
+   SELECT coalesce(
+      array_agg(
+         ROW(
+            x.id_doc,                                           -- id_doc
+            NULL::numeric,                                      -- icusnum
+            CASE x.is_main WHEN '1' THEN 'Y' ELSE 'N' END,      -- pref
+            x.id_doc_tp,                                        -- id_doc_tp
+            NULL::numeric,                                      -- doc_npp
+            x.doc_num::varchar(60),                             -- doc_num
+            x.doc_ser::varchar(10),                             -- doc_ser
+            to_date(x.doc_date_s,   'YYYY-MM-DD'),              -- doc_date
+            x.doc_agency::varchar(210),                         -- doc_agency
+            to_date(x.doc_e_date_s, 'YYYY-MM-DD'),              -- doc_period
+            x.doc_subdiv::varchar(15),                          -- doc_subdiv
+            NULL::numeric,                                      -- broad_id
+            NULL::numeric,                                      -- photo_id
+            NULL::numeric,                                      -- sign_id
+            NULL::varchar(3),                                   -- doc_cnt
+            NULL::date,                                         -- doc_active
+            NULL::date,                                         -- doc_active_end
+            0::numeric,                                         -- id_mode
+            NULL::varchar(100),                                 -- doc_last_name
+            NULL::varchar(60),                                  -- doc_first_name
+            NULL::varchar(60),                                  -- doc_middle_name
+            NULL::date,                                         -- doc_present
+            NULL::varchar(100)                                  -- docsernum
+         )::xxi.cus_docum
+      ),
+      '{}'::xxi._cus_docum
       )
       FROM XMLTABLE(
          '//CUS_DOC/item'
@@ -399,93 +403,80 @@ BEGIN
       SELECT coalesce(
          array_agg(
             ROW(
-               x.id_addr,  -- 1  id_addr
-               NULL::numeric,  -- 2  icusnum
-               x.addr_type,  -- 3  addr_type
-               x.code::varchar(20),  -- 4  code
-               K_pkgCus.cty_AnyId_2_A2(coalesce(x.country, x.country_name))::varchar(3),  -- 5  country
-               x.post_index::varchar(10),  -- 6  post_index
-
-               coalesce(
+               x.id_addr,                -- 1  id_addr
+               NULL::numeric,            -- 2  icusnum
+               x.addr_type,              -- 3  addr_type
+               x.code::varchar,          -- 4  code
+               K_pkgCus.cty_AnyId_2_A2(coalesce(x.country, x.country_name))::varchar,  -- 5  country
+               x.post_index::varchar,    -- 6  post_index
+               coalesce (
                   NULLIF(trim(x.reg_num), '')::numeric,
                   NULLIF(substr(x.reg_name_kladr, 1, 2), '')::numeric
-               ),  -- 7  reg_num
-
-               coalesce(
+               ),                         -- 7  reg_num
+               coalesce (
                   x.area,
                   (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.area_kladr)
-               )::varchar(256),  -- 8  area
-
-               coalesce(
+               )::varchar,                -- 8  area
+               coalesce (
                   x.reg_name,
                   (SELECT a.cname || ' ' || a.socr FROM v_kladr_base a WHERE a.code = x.reg_name_kladr)
-               )::varchar(51),  -- 9  reg_name
-
-               coalesce(
+               )::varchar,                -- 9  reg_name
+               coalesce (
                   x.city,
                   (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.city_kladr)
-               )::varchar(100),  -- 10 city
-
+               )::varchar,                -- 10 city
                coalesce(
                   x.punct_name,
                   (SELECT a.cname FROM v_kladr_base a WHERE a.code = x.punct_name_kladr)
-               )::varchar(100),  -- 11 punct_name
-
+               )::varchar,                -- 11 punct_name
                coalesce(
                   x.city_type,
                   (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.city_kladr)
-               )::varchar(60),  -- 12 city_type
-
+               )::varchar,                -- 12 city_type
                coalesce(
                   x.area_type,
                   (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.area_kladr)
-               )::varchar(60),  -- 13 area_type
-
+               )::varchar,                -- 13 area_type
                coalesce(
                   x.infr_name,
                   (SELECT a.cname FROM v_kladr_street a WHERE a.code = x.infr_name_kladr)
-               )::varchar(250),  -- 14 infr_name
-
-               x.dom::varchar(100),  -- 15 dom
-
+               )::varchar,                -- 14 infr_name
+               x.dom::varchar,            -- 15 dom
                coalesce(
                   x.punct_type,
                   (SELECT a.socr FROM v_kladr_base a WHERE a.code = x.punct_name_kladr)
-               )::varchar(60),  -- 16 punct_type
-
-               x.korp::varchar(60),  -- 17 korp
-               x.stroy::varchar(60),  -- 18 stroy
-
+               )::varchar,                -- 16 punct_type
+               x.korp::varchar,           -- 17 korp
+               x.stroy::varchar,          -- 18 stroy
                coalesce(
                   x.infr_type,
                   (SELECT a.socr FROM v_kladr_street a WHERE a.code = x.infr_name_kladr)
-               )::varchar(60),  -- 19 infr_type
+               )::varchar,                -- 19 infr_type
+               x.kv::varchar,             -- 20 kv
+               x.office::varchar,         -- 21 office
+               x.porch::varchar,          -- 22 porch
+               NULL::varchar,             -- 23 oksm_code
+               x.address_inline::varchar, -- 24 address_inline
+               x.stroy_type,              -- 25 stroy_type
 
-               x.kv::varchar(60),  -- 20 kv
-               x.office::varchar(100),  -- 21 office
-               x.porch::varchar(10),  -- 22 porch
-               NULL::varchar(5),      -- 23 oksm_code
-               x.address_inline::varchar(210),  -- 24 address_inline
-               x.stroy_type,         -- 25 stroy_type
+               NULL::varchar,             -- 26 plan_name
+               NULL::varchar,             -- 27 plan_type
+               NULL::varchar,             -- 28 dom_type
+               NULL::varchar,             -- 29 alt_country_name
 
-               NULL::varchar(120),  -- 26 plan_name
-               NULL::varchar(60),   -- 27 plan_type
-               NULL::varchar(10),   -- 28 dom_type
-               NULL::varchar(200),  -- 29 alt_country_name
+               x.addr_guid::varchar,      -- 30 addr_guid
 
-               x.addr_guid::varchar(36),  -- 30 addr_guid
-
-               NULL::varchar(250),  -- 31 district
-               NULL::varchar(250),  -- 32 settlement
-               0::numeric,          -- 33 mun
-               NULL::varchar(60),   -- 34 distr_type
-               NULL::varchar(60),   -- 35 settl_type
-               NULL::varchar(250),  -- 36 stead
-               NULL::varchar(10),   -- 37 kv_type
-               NULL::varchar(60),   -- 38 room
-               NULL::varchar(10),   -- 39 room_type
-               NULL::varchar(60),   -- 40 carplace
-               NULL::numeric        -- 41 ext_id
+               NULL::varchar,             -- 31 district
+               NULL::varchar,             -- 32 settlement
+               0::numeric,                -- 33 mun
+               NULL::varchar,             -- 34 distr_type
+               NULL::varchar,             -- 35 settl_type
+               NULL::varchar,             -- 36 stead
+               NULL::varchar,             -- 37 kv_type
+               NULL::varchar,             -- 38 room
+               NULL::varchar,             -- 39 room_type
+               NULL::varchar,             -- 40 carplace
+               NULL::numeric              -- 41 ext_id
             )::xxi.cus_addr
          ),
          '{}'::xxi._cus_addr
@@ -528,7 +519,6 @@ BEGIN
    );
 END;
 $function$
-
 
 
 /* XML -> категории/группы */
@@ -649,16 +639,7 @@ END;
 $function$
 
 
-/* 
-   Заведение нового клиента 
-   IN  p_xml          xml,
-   IN  p_operation    int4,   -- 1=create, 2=update
-   IN  p_run_Mfv      int4,
-   OUT p_cus_Id       numeric,
-   OUT p_result_Code  int4,
-   OUT p_result_Info  varchar
-
-*/
+/* Заведение нового клиента */
 CREATE PROCEDURE create_Cus (
     in p_xml         XML,
     in p_runMfv      INT4,
@@ -666,7 +647,7 @@ CREATE PROCEDURE create_Cus (
    OUT p_result_Code int4,
    OUT p_result_Info varchar
 )
-as
+AS
 $procedure$
    #package
 BEGIN

@@ -6,13 +6,14 @@ CREATE OR REPLACE PACKAGE ecd_loader_Agr
    #export off
    DECLARE
       -- Пакет загрузчика для работы с данными загружаемого договора
-      cVersion CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cVersion  CONSTANT varchar(100) := '$id: {0.1.0} {10.04.2026} Lora$';
+      cPkg_Name CONSTANT varchar(30 ) := 'ECD_loader_Agr';
 
       RET_OK   CONSTANT int4 := 0;
       RET_FAIL CONSTANT int4 := -1;
 
    BEGIN
-      RAISE DEBUG 'Package "ecd_loader_agr" - % - initialized', cVersion;
+      RAISE DEBUG 'Package "%" - % - initialized', cPkg_Name, cVersion;
    END;
    $init$
 
@@ -109,12 +110,14 @@ $function$
 
 /* Проверить/дополнить процентную ставку */
 CREATE PROCEDURE prepare_Rate (
-   IN     p_ctx ecd_loader_types.ctx_t,
-   IN OUT p_agr ecd_loader_types.agr_t
+   IN p_ctx ecd_loader_types.ctx_t,
+   IN 
+  OUT p_agr ecd_loader_types.agr_t
 )
 AS
 $procedure$
    #package
+   #private
 BEGIN
 
    IF coalesce( p_agr.ext_percent, 0 ) <> 0 THEN
@@ -124,22 +127,23 @@ BEGIN
    SELECT z.pcdhpval
      INTO p_agr.ext_percent
      FROM (
-        SELECT
-           ecd_loader_xml.to_percent(x.pcdhpval_s) AS pcdhpval,
-           to_date(x.dcdhdate_s, 'YYYY-MM-DD')     AS dcdhdate
-          FROM XMLTABLE(
+       SELECT
+            ecd_loader_xml.to_percent(x.pcdhpval_s) AS pcdhpval,
+            to_date(x.dcdhdate_s, 'YYYY-MM-DD')     AS dcdhdate
+         FROM XMLTABLE(
              '//CDA_PART/item[@part="1"]/CDA_HTERM/item[term="INTRATE"]'
              PASSING p_ctx.input_Xml
              COLUMNS
                 pcdhpval_s varchar(30) PATH 'percent_value',
                 dcdhdate_s varchar(30) PATH 'date'
-          ) x
-        WHERE x.pcdhpval_s IS NOT NULL
-     ) z
-    ORDER BY z.dcdhdate DESC
-    LIMIT 1;
+         ) x
+     WHERE x.pcdhpval_s IS NOT NULL
+   ) z
+   ORDER 
+      BY z.dcdhdate DESC
+   LIMIT 1;
 
-   IF coalesce(p_agr.ext_percent, 0) = 0 THEN
+   IF coalesce( p_agr.ext_percent, 0) = 0 THEN
       CALL ecd_loader_ret.put_Warn( 'cda', '% ставка не задана, будет взята с макета' );
    END IF;
 
@@ -199,7 +203,7 @@ BEGIN
 
          CALL ECD_loader_Err.raise_Data_Error (
             'AGR_ID_ALREADY_EXISTS',
-            'Договор с идентификатором ' || p_agr.agr_id::varchar || ' уже существует.'
+            'Договор с идентификатором ' || p_agr.agr_Id::varchar || ' уже существует.'
          );
 
       END IF;
@@ -234,15 +238,14 @@ BEGIN
 
          CALL ECD_loader_Err.raise_Data_Error (
             'INITIAL_ID_NOT_FOUND',
-            'Договор для обратного выкупа с исходным идентификатором '
-            || p_agr.initial_Id || ' не найден.'
+            'Договор для обратного выкупа с исходным идентификатором ' || p_agr.initial_Id || ' не найден.'
          );
 
       END IF;
 
       IF ECD_loader_Map.get_Cda_Id_By_Ext_Id( p_agr.initial_id, 4) IS NOT NULL THEN
 
-         CALL ECD_loader_Err.raise_Data_Error(
+         CALL ECD_loader_Err.raise_Data_Error (
             'INITIAL_ID_ALREADY_USED',
             'Для договора с ID ' || p_agr.initial_id || ' уже был загружен договор обратного выкупа'
          );
@@ -273,7 +276,7 @@ BEGIN
 
             CALL ECD_loader_Err.raise_Data_Error(
                'AGR_JUR_ALREADY_EXISTS',
-               'Договор с юр. номером ' || p_agr.ext_num || ' уже загружен. (cda.nCdaAgrID = ' || l_tmp_Agr_Id::varchar || ')'
+               'Договор с юр. номером ' || p_agr.ext_num || ' уже загружен. ( ncdaagrid = ' || l_tmp_Agr_Id::varchar || ')'
             );
          END IF;
 
@@ -346,6 +349,8 @@ CREATE PROCEDURE create_Agr (
 )
 AS
 $procedure$
+   #package
+   #private
 DECLARE
    l_result_Code int4;
    l_result_Info varchar;
@@ -379,13 +384,14 @@ CREATE PROCEDURE link_To_Pfl (
 AS
 $procedure$
    #package
+   #private
 BEGIN
 
    IF p_agr.pfl_id IS NULL THEN
       RETURN;
    END IF;
 
-   INSERT INTO cda_link_cdsale(
+   INSERT INTO xxi.cda_link_cdsale(
       nCdaAgrId,
       iCdSaleId
    )
@@ -393,7 +399,7 @@ BEGIN
           p_agr.pfl_id
     WHERE NOT EXISTS (
       SELECT 1
-        FROM cda_link_cdsale b
+        FROM xxi.cda_link_cdsale b
        WHERE b.nCdaAgrId = p_agr.agr_id
          AND b.iCdSaleId = p_agr.pfl_id
    );
@@ -447,17 +453,18 @@ CREATE PROCEDURE save_Meta(
 AS
 $procedure$
    #package
+   #private
 BEGIN
 
-   UPDATE cda2
+   UPDATE xxi.cda2
       SET cCda2ExtID       = p_agr.ext_id,
           cCda2PrimID      = p_agr.initial_id,
           dCda2AgrFbDate   = p_agr.d_original,
           dCda2AgrFEndDate = p_agr.d_original_end,
           cCda2Comm        = p_agr.cda_note,
           nCda2TpFlg       = 1
-    WHERE nCda2AgrID       = p_agr.agr_id;
-
+    WHERE 
+          nCda2AgrID       = p_agr.agr_id;
 END;
 $procedure$
 
@@ -470,6 +477,7 @@ CREATE PROCEDURE save_Purpose(
 AS
 $procedure$
    #package
+   #private
 BEGIN
 
    IF p_agr.purpose_id IS NULL AND p_agr.purpose_num IS NOT NULL 
@@ -481,7 +489,7 @@ BEGIN
       RETURN;
    END IF;
 
-   UPDATE cda
+   UPDATE xxi.cda
       SET iCdaPurpose = p_agr.purpose_id
     WHERE nCdaAgrID   = p_agr.agr_id;
 
@@ -508,6 +516,7 @@ CREATE PROCEDURE save_Ifrs(
 AS
 $procedure$
    #package
+   #private
 DECLARE
    l_stage_Id    numeric;
    l_result_Code int4;
@@ -515,9 +524,11 @@ DECLARE
 BEGIN
 
    IF p_agr.icdhstdid IS NOT NULL THEN
-      UPDATE cdifrs_cdh
+
+      UPDATE xxi.cdifrs_cdh
          SET iCdhStdId = p_agr.icdhstdid
        WHERE nCdhAgrId = p_agr.agr_id;
+
    END IF;
 
    IF p_agr.msfo_std IS NOT NULL THEN
@@ -537,16 +548,20 @@ BEGIN
       );
 
       IF l_result_Code <> RET_OK THEN
+
          CALL ECD_loader_Ret.put_Warn(
             'cda',
             'Ошибка установки стадии МСФО: ' || coalesce(l_result_Info, '<NULL>'),
             p_agr.msfo_std,
             p_agr.agr_id::varchar
          );
+
       END IF;
+
    END IF;
 
    IF p_agr.msfo_seg IS NOT NULL THEN
+
       CALL ecd_loader_Dep.update_History (
          p_agr.agr_id,
          1,
@@ -557,6 +572,7 @@ BEGIN
          NULL,
          ECD_loader_Map.get_Internal_Id( p_ctx.provider_id, 11, p_agr.msfo_seg )::numeric
       );
+
    END IF;
 
 END;
@@ -564,12 +580,13 @@ $procedure$
 
 
 /* Сохранить ПСК */
-CREATE PROCEDURE save_Psk(
+CREATE PROCEDURE save_Psk (
    IN p_agr ECD_loader_Types.agr_t
 )
 AS
 $procedure$
    #package
+   #private
 BEGIN
    IF p_agr.psk IS NOT NULL THEN
       CALL ECD_loader_Dep.update_History( p_agr.agr_id, NULL, 'FULLRATE', p_agr.dt_buy, NULL, NULL, p_agr.psk, NULL );
@@ -585,6 +602,7 @@ CREATE FUNCTION parse_Parts (
 AS
 $function$
    #package
+   #private
 BEGIN
    IF p_agr.parts_xml IS NULL THEN
       RETURN;
@@ -670,9 +688,7 @@ DECLARE
    l_cnt         numeric := 0;
 BEGIN
 
-   FOR l_part IN
-      SELECT *
-        FROM parse_Parts(p_agr)
+   FOR l_part IN SELECT * FROM parse_Parts(p_agr)
    LOOP
 
       CALL ECD_loader_Dep.new_Ces_Part( l_part, l_result_Code, l_result_Info );
@@ -724,6 +740,7 @@ CREATE PROCEDURE load_History(
 AS
 $procedure$
    #package
+   #private
 BEGIN
 
    IF p_agr.agr_id IS NULL THEN
@@ -811,7 +828,7 @@ END;
 $procedure$
 
 
-/* Полный цикл обработки договора */
+/* Полный цикл обработки загрузки договора */
 CREATE PROCEDURE load_Agr (
    IN OUT p_ctx    ECD_loader_Types.ctx_t,
    IN     p_cus_Id numeric,
@@ -820,12 +837,32 @@ CREATE PROCEDURE load_Agr (
 AS
 $procedure$
    #package
+   #private
+DECLARE
+   cProc CONSTANT varchar := cPkg_Name || '.load_Agr';
 BEGIN
 
-   p_agr := ECD_loader_Agr.parse_Agr(p_ctx, p_cus_Id);
+   CALL ECD_loader_Log.inf( cProc, 'enter_f', 'provider_id=' || coalesce(p_ctx.provider_id, '<NULL>' ));
 
+   CALL ECD_loader_Log.log( cProc, 'before parse_Agr', 'p_cus_Id=' || coalesce( p_cus_Id::varchar, '<NULL>' ) );
+   p_agr := ECD_loader_Agr.parse_Agr( p_ctx, p_cus_Id );
+   CALL ECD_loader_Log.dbg( cProc,'after parse_Agr',
+      'ext_num='     || coalesce(l_agr.ext_num, '<NULL>')
+      || ', agr_id=' || coalesce(l_agr.agr_id::varchar, '<NULL>')
+      || ', mda_id=' || coalesce(l_agr.mda_id::varchar, '<NULL>')
+      || ', dt_buy=' || coalesce(l_agr.dt_buy::varchar, '<NULL>')
+   );
+
+   -- подготовка процентной ставки
+   CALL ECD_loader_Log.dbg( cProc, 'before prepare_Rate', 'ext_percent=' || coalesce(l_agr.ext_percent::varchar, '<NULL>') );
    CALL ECD_loader_Agr.prepare_Rate    (p_ctx, p_agr);
+   CALL ECD_loader_Log.dbg( cProc, 'after prepare_Rate',  'ext_percent=' || coalesce(l_agr.ext_percent::varchar, '<NULL>') );
+
+   -- определение макета
+   CALL ECD_loader_Log.dbg( cProc, 'before resolve_Mda', '' );
    CALL ECD_loader_Agr.resolve_Mda     (p_ctx, p_agr);
+   CALL ECD_loader_Log.dbg( cProc, 'after resolve_Mda',  'mda_id =' || coalesce(l_agr.mda_id::varchar, '<NULL>') );
+
    CALL ECD_loader_Agr.resolve_Agr_Id  (p_ctx, p_agr);
    CALL ECD_loader_Agr.validate_Agr    (p_ctx, p_agr);
    CALL ECD_loader_Agr.resolve_Purchase(p_ctx, p_agr);

@@ -59,14 +59,15 @@ END;
 $procedure$
 
 
-/* Создание кредитного договора */
+/* Создание кредитного договора цессии */
 CREATE PROCEDURE new_Ces(
-   IN  p_agr         ecd_loader_types.agr_t,
+   IN  p_agr         ECD_loader_Types.agr_t,
    OUT p_result_Code int4,
    OUT p_result_Info varchar
 )
 AS
 $procedure$
+   #package
 DECLARE
    l_ret varchar;
 BEGIN
@@ -74,11 +75,11 @@ BEGIN
    p_result_Code := RET_FAIL;
    p_result_Info := NULL;
 
-   CALL ecd_loader_Log.dbg(
-      'ecd_loader_Dep.new_Ces: agr_Id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   CALL ecd_loader_Log.dbg (
+      'ecd_loader_Dep.new_Ces: agr_Id=' || coalesce( p_agr.agr_id::varchar, '<NULL>' )
    );
 
-   l_ret := CDCes.New_Ces(
+   l_ret := CDCes.New_Ces (
       AgrID        => p_agr.agr_id,
       CD_Sum       => p_agr.total_sum,
       Pay_Sum      => NULL,
@@ -128,12 +129,13 @@ $procedure$
 
 /* Создание части договора */
 CREATE PROCEDURE new_Ces_Part(
-   IN  p_part        ecd_loader_types.part_t,
+   IN  p_part        ECD_loader_Types.part_t,
    OUT p_result_Code int4,
    OUT p_result_Info varchar
 )
 AS
 $procedure$
+   #package
 DECLARE
    l_ret      varchar;
    l_new_Part CDCes.Part_Details;
@@ -142,14 +144,12 @@ BEGIN
    p_result_Code := RET_FAIL;
    p_result_Info := NULL;
 
-   CALL ecd_loader_Log.dbg(
-      'ecd_loader_Dep.new_Ces_Part: agr_Id='
-      || coalesce(p_part.agr_id::varchar, '<NULL>')
-      || ', part=' || coalesce(p_part.part_no::varchar, '<NULL>')
+   CALL ecd_loader_Log.dbg (
+      'ecd_loader_Dep.new_Ces_Part: agr_Id=' || coalesce(p_part.agr_id::varchar, '<NULL>') || ', part=' || coalesce(p_part.part_no::varchar, '<NULL>')
    );
 
    /*
-      Преобразование ecd_loader_types.part_t -> CDCes.Part_Details
+      Преобразование ECD_loader_Types.part_t -> CDCes.Part_Details
    */
    l_new_Part.agrId  := p_part.agr_id;
    l_new_Part.part   := p_part.part_no;
@@ -438,11 +438,12 @@ BEGIN
    p_result_Code := RET_FAIL;
    p_result_Info := NULL;
 
-   IF CDState.Check_Agr_Cnd( p_agr_Id, l_err_Msg ) THEN
+   IF CDState.check_Agr_Cnd( p_agr_Id, l_err_Msg ) THEN
 
-      UPDATE cda
+      UPDATE xxi."CDA"
          SET iCdaStatus = 1
-       WHERE nCdaAgrID  = p_agr_Id;
+       WHERE 
+             nCdaAgrID  = p_agr_Id;
 
       IF CDState.guess_And_Set_Status( p_agr_Id ) IS NOT NULL THEN
          p_result_Code := RET_OK;
@@ -453,8 +454,10 @@ BEGIN
       END IF;
 
    ELSE
+
       p_result_Code := RET_FAIL;
       p_result_Info := l_err_Msg;
+
    END IF;
 
 EXCEPTION
