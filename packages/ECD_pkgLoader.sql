@@ -383,6 +383,16 @@ EXCEPTION
 
                CALL ecd_loader_Log.err (  l_err_text );
 
+               CALL ECD_loader_Log.err(
+                  'ECD_pkgLoader.load',
+                  'failed',
+                  'sqlstate=' || coalesce(ex_state, '<NULL>')
+                  || ', msg=' || coalesce(ex_msg, '<NULL>')
+                  || ', detail=' || coalesce(ex_detail, '<NULL>')
+                  || ', hint=' || coalesce(ex_hint, '<NULL>')
+                  || ', context=' || coalesce(ex_context, '<NULL>')
+               );
+
                p_result_code := RET_FAIL;
                p_result_info := l_err_text;
 

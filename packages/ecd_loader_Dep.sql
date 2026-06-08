@@ -207,7 +207,7 @@ AS
 $procedure$
 BEGIN
 
-   IF coalesce(p_n_Val, p_c_Val, p_p_Val, p_i_Val::varchar) IS NULL THEN
+   IF coalesce(p_n_Val::varchar, p_c_Val::varchar, p_p_Val::varchar, p_i_Val::varchar) IS NULL THEN
       RETURN;
    END IF;
 

@@ -589,7 +589,7 @@ $procedure$
    #private
 BEGIN
    IF p_agr.psk IS NOT NULL THEN
-      CALL ECD_loader_Dep.update_History( p_agr.agr_id, NULL, 'FULLRATE', p_agr.dt_buy, NULL, NULL, p_agr.psk, NULL );
+      CALL ECD_loader_Dep.update_History( p_agr.agr_id, NULL::numeric, 'FULLRATE', p_agr.dt_buy, NULL::numeric, NULL::varchar, p_agr.psk::numeric, NULL::numeric );
    END IF;
 END;
 $procedure$
@@ -688,7 +688,7 @@ DECLARE
    l_cnt         numeric := 0;
 BEGIN
 
-   FOR l_part IN SELECT * FROM parse_Parts(p_agr)
+   FOR l_part IN SELECT * FROM ECD_loader_Agr.parse_Parts(p_agr)
    LOOP
 
       CALL ECD_loader_Dep.new_Ces_Part( l_part, l_result_Code, l_result_Info );
@@ -776,7 +776,8 @@ BEGIN
          SELECT
             xt.npart,
             xt.ccdhterm,
-            ecd_loader_xml.get_date_val( xt.dcdhdate_s ) AS dcdhdate,
+            -- ecd_loader_xml.get_date_val( xt.dcdhdate_s ) AS dcdhdate,
+            xt.dcdhdate_s::date                          AS dcdhdate,
             ecd_loader_xml.to_numeric  ( xt.icdhdsub_s ) AS icdhdsub,
             xt.ccdhcval,
             ecd_loader_xml.to_money    ( xt.mcdhmval_s ) AS mcdhmval,
@@ -841,50 +842,257 @@ DECLARE
    cProc CONSTANT varchar := cPkg_Name || '.load_Agr';
 BEGIN
 
-   CALL ECD_loader_Log.inf( cProc, 'enter_f', 'provider_id=' || coalesce(p_ctx.provider_id, '<NULL>' ));
+   CALL ECD_loader_Log.inf( cProc, 'enter', 'provider_id=' || coalesce(p_ctx.provider_id, '<NULL>') || ', cus_id=' || coalesce(p_cus_Id::varchar, '<NULL>') );
 
-   CALL ECD_loader_Log.log( cProc, 'before parse_Agr', 'p_cus_Id=' || coalesce( p_cus_Id::varchar, '<NULL>' ) );
-   p_agr := ECD_loader_Agr.parse_Agr( p_ctx, p_cus_Id );
-   CALL ECD_loader_Log.dbg( cProc,'after parse_Agr',
-      'ext_num='     || coalesce(p_agr.ext_num, '<NULL>')
-      || ', agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   CALL ECD_loader_Log.dbg( cProc, 'before parse_Agr', 'cus_id=' || coalesce(p_cus_Id::varchar, '<NULL>') );
+
+   p_agr := ECD_loader_Agr.parse_Agr(p_ctx, p_cus_Id);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after parse_Agr',
+      'agr_id='      || coalesce(p_agr.agr_id::varchar, '<NULL>')
+      || ', ext_num=' || coalesce(p_agr.ext_num, '<NULL>')
       || ', mda_id=' || coalesce(p_agr.mda_id::varchar, '<NULL>')
       || ', dt_buy=' || coalesce(p_agr.dt_buy::varchar, '<NULL>')
    );
 
-   -- подготовка процентной ставки
-   CALL ECD_loader_Log.dbg( cProc, 'before prepare_Rate', 'ext_percent=' || coalesce(p_agr.ext_percent::varchar, '<NULL>') );
-   CALL ECD_loader_Agr.prepare_Rate    (p_ctx, p_agr);
-   CALL ECD_loader_Log.dbg( cProc, 'after prepare_Rate',  'ext_percent=' || coalesce(p_agr.ext_percent::varchar, '<NULL>') );
-
-   -- определение макета
-   CALL ECD_loader_Log.dbg( cProc, 'before resolve_Mda', '' );
-   CALL ECD_loader_Agr.resolve_Mda     (p_ctx, p_agr);
-   CALL ECD_loader_Log.dbg( cProc, 'after resolve_Mda',  'mda_id =' || coalesce(p_agr.mda_id::varchar, '<NULL>') );
-
-   CALL ECD_loader_Agr.resolve_Agr_Id  (p_ctx, p_agr);
-   CALL ECD_loader_Agr.validate_Agr    (p_ctx, p_agr);
-   CALL ECD_loader_Agr.resolve_Purchase(p_ctx, p_agr);
-
-   CALL ECD_loader_Agr.create_Agr      (p_ctx, p_agr);
-   
-   p_ctx.agr_Id := p_agr.agr_id;
-
-   CALL ECD_loader_Agr.load_History    (p_ctx, p_agr);   
-
-   CALL ECD_loader_Agr.link_To_Pfl     (p_agr);
-   CALL ECD_loader_Agr.save_Uuid       (p_agr);
-   CALL ECD_loader_Agr.save_Meta       (p_agr);
-   CALL ECD_loader_Agr.save_Purpose    (p_ctx, p_agr);
-   CALL ECD_loader_Agr.save_Ifrs       (p_ctx, p_agr);
-   CALL ECD_loader_Agr.save_Psk        (p_agr);
-
-   CALL ECD_loader_Agr.create_Parts    (p_ctx, p_agr);
-
-   CALL ECD_loader_Ret.put_Data (
-      'cda', NULL, p_agr.agr_id::varchar
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before prepare_Rate',
+      'ext_percent=' || coalesce(p_agr.ext_percent::varchar, '<NULL>')
    );
 
+   CALL ECD_loader_Agr.prepare_Rate(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after prepare_Rate',
+      'ext_percent=' || coalesce(p_agr.ext_percent::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before resolve_Mda',
+      'mda_id=' || coalesce(p_agr.mda_id::varchar, '<NULL>')
+      || ', mak_external_id=' || coalesce(p_agr.mak_external_id, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.resolve_Mda(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after resolve_Mda',
+      'mda_id=' || coalesce(p_agr.mda_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before resolve_Agr_Id',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.resolve_Agr_Id(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after resolve_Agr_Id',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before validate_Agr',
+      'initial_id=' || coalesce(p_agr.initial_id, '<NULL>')
+      || ', ext_num=' || coalesce(p_agr.ext_num, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.validate_Agr(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after validate_Agr',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before resolve_Purchase',
+      'pfl_id=' || coalesce(p_agr.pfl_id::varchar, '<NULL>')
+      || ', pfl_num=' || coalesce(p_agr.pfl_num, '<NULL>')
+      || ', purchase_type=' || coalesce(p_agr.purchase_type::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.resolve_Purchase(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after resolve_Purchase',
+      'pfl_id=' || coalesce(p_agr.pfl_id::varchar, '<NULL>')
+      || ', purchase_type=' || coalesce(p_agr.purchase_type::varchar, '<NULL>')
+      || ', premium_sum=' || coalesce(p_agr.premium_sum::varchar, '<NULL>')
+      || ', coeff_discount=' || coalesce(p_agr.coeff_discount::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before create_Agr',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+      || ', cus_id=' || coalesce(p_agr.cus_id::varchar, '<NULL>')
+      || ', mda_id=' || coalesce(p_agr.mda_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.create_Agr(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.inf(
+      cProc,
+      'after create_Agr',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   p_ctx.agr_id := p_agr.agr_id;
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before load_History',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.load_History( p_ctx, p_agr );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after load_History',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before link_To_Pfl',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+      || ', pfl_id=' || coalesce(p_agr.pfl_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.link_To_Pfl(p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after link_To_Pfl',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before save_Uuid',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+      || ', uuid=' || coalesce(p_agr.uuid, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.save_Uuid(p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after save_Uuid',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before save_Meta',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.save_Meta(p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after save_Meta',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before save_Purpose',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+      || ', purpose_id=' || coalesce(p_agr.purpose_id::varchar, '<NULL>')
+      || ', purpose_num=' || coalesce(p_agr.purpose_num, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.save_Purpose(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after save_Purpose',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before save_Ifrs',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+      || ', msfo_std=' || coalesce(p_agr.msfo_std, '<NULL>')
+      || ', msfo_seg=' || coalesce(p_agr.msfo_seg, '<NULL>')
+      || ', icdhstdid=' || coalesce(p_agr.icdhstdid::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.save_Ifrs(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after save_Ifrs',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before save_Psk',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+      || ', psk=' || coalesce(p_agr.psk::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.save_Psk(p_agr);
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'after save_Psk',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Log.dbg(
+      cProc,
+      'before create_Parts',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Agr.create_Parts(p_ctx, p_agr);
+
+   CALL ECD_loader_Log.inf(
+      cProc,
+      'after create_Parts',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+   CALL ECD_loader_Ret.put_Data(
+      'cda',
+      NULL,
+      p_agr.agr_id::varchar
+   );
+
+   CALL ECD_loader_Log.inf(
+      cProc,
+      'exit',
+      'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+   );
+
+EXCEPTION
+   WHEN OTHERS THEN
+      CALL ECD_loader_Log.err(
+         cProc,
+         'failed',
+         'agr_id=' || coalesce(p_agr.agr_id::varchar, '<NULL>')
+         || ', sqlerrm=' || SQLERRM
+      );
+      RAISE;
 END;
 $procedure$
 
