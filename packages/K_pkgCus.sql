@@ -6,7 +6,7 @@ $init$
    #export off
    #import ac, account2
 DECLARE
-   cVersion CONSTANT varchar(100) := '$id: {0.2.1} {04.06.2026} Sulimoff$';
+   cVersion CONSTANT varchar(100) := '0.2.2';
 
    RET_OK   CONSTANT int4 := 0;
    RET_FAIL CONSTANT int4 := -1;
@@ -367,7 +367,8 @@ RETURN (
             NULL::varchar(60),                                  -- doc_first_name
             NULL::varchar(60),                                  -- doc_middle_name
             NULL::date,                                         -- doc_present
-            NULL::varchar(100)                                  -- docsernum
+            NULL::varchar(100),                                 -- docsernum
+            NULL::varchar(80)                                   -- doc_hash
          )::xxi.cus_docum
       ),
       '{}'::xxi._cus_docum

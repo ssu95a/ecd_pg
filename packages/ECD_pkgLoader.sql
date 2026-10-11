@@ -314,6 +314,8 @@ BEGIN
    CALL ECD_loader_Ret.ret_Init();
    CALL ECD_loader_Ret.ret_Clear();
 
+   begin
+
    p_result_code := RET_FAIL;
    p_result_info := NULL;
 
@@ -382,7 +384,7 @@ EXCEPTION
                l_err_text := TS.WhenOthersError('ECD_pkgLoader.load', ex);
 
                CALL ecd_loader_Log.err (  l_err_text );
-
+               /*
                CALL ECD_loader_Log.err(
                   'ECD_pkgLoader.load',
                   'failed',
@@ -392,7 +394,7 @@ EXCEPTION
                   || ', hint=' || coalesce(ex_hint, '<NULL>')
                   || ', context=' || coalesce(ex_context, '<NULL>')
                );
-
+               */
                p_result_code := RET_FAIL;
                p_result_info := l_err_text;
 
@@ -401,6 +403,7 @@ EXCEPTION
                RAISE DEBUG 'ECD_pkgLoader.load failed: %', l_err_text;
 
          END; 
+   END; 
 
 END;
 $procedure$

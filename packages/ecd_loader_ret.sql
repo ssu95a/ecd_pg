@@ -42,12 +42,13 @@ BEGIN
       ce_id varchar(100),
       ctext text
    )
-   ON COMMIT PRESERVE ROWS;
+   ON 
+      COMMIT PRESERVE ROWS;
 END;
 $procedure$
 
 
-/* */   
+/* */
 CREATE PROCEDURE ret_Init()
 AS
 $procedure$
